@@ -4,9 +4,10 @@ import logging
 from browser_use import Agent, BrowserProfile
 from browser_use.llm import ChatAnthropic
 from dotenv import load_dotenv
+from .memory_manager import MemoryManager
 
 # Load environment variables
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env'))
 
 # Set browser-use config directory to local project directory
 os.environ['BROWSER_USE_CONFIG_DIR'] = os.path.join(os.getcwd(), '.browser_use_config')
@@ -20,6 +21,7 @@ class TwitterBrowserBot:
         self.agent = None
         self.browser_session = None
         self.logged_in = False
+        self.memory_manager = MemoryManager()
         self.llm = ChatAnthropic(
             model='claude-sonnet-4-0',
             temperature=0.0
@@ -44,6 +46,28 @@ class TwitterBrowserBot:
             headless=False,  
             enable_default_extensions=False  # Disable extensions for speed
         )
+
+    def _parse_tweets_from_result(self, result_text: str):
+        """Parse tweets from agent result and filter ads"""
+        tweets = []
+        lines = result_text.split('\n')
+        current_tweet = {}
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith('Author: @'):
+                if current_tweet:
+                    tweets.append(current_tweet)
+                current_tweet = {'author': line[9:], 'text': '', 'indicators': []}
+            elif line.startswith('Text: '):
+                current_tweet['text'] = line[6:]
+            elif 'Promoted' in line or 'Sponsored' in line or 'Ad' in line:
+                current_tweet['indicators'].append(line)
+
+        if current_tweet:
+            tweets.append(current_tweet)
+
+        return tweets
 
     async def start_session(self):
         """Open browser and login to Twitter"""
@@ -99,24 +123,50 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            FAST: Post tweet "{text}" - click compose, type text, click post. Be quick and direct.
+            POST TWEET: "{text}"
+
+            STEPS:
+            1. Click compose/tweet button
+            2. Type the text: {text}
+            3. Click post/send button
+
+            Keep it simple and direct.
             """
+
+            logger.info(f"Starting tweet post: {text[:50]}...")
 
             agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Post tweets immediately.",
-                max_steps=3,  # Very few steps for posting
-                step_timeout=10,  # Fast timeout
-                flash_mode=True,  # Enable flash mode for speed
-                use_thinking=False,  # Disable thinking for speed
-                max_actions_per_step=3  # Limit actions per step
+                system_message="You are on Twitter. Find the compose button, type the tweet, and post it. Keep it simple.",
+                max_steps=4,  # More steps for reliability
+                step_timeout=45,  # Longer timeout
+                verbose=True  # Enable debugging
             )
 
             result = await agent.run()
-            logger.info(f"Posted tweet: {text}")
+            logger.info(f"Tweet posting completed. Result: {str(result)[:100]}...")
+
+            # Log tweet posting to memory
+            interaction_data = {
+                'type': 'tweet_post',
+                'text': text,
+                'author': 'self',
+                'indicators': [],
+                'success': True
+            }
+            self.memory_manager.log_interaction(interaction_data)
+
+            # Update strategy effectiveness for posting
+            self.memory_manager.update_strategy(
+                'tweet_posting',
+                True,
+                {'content_type': 'original_tweet', 'text_length': len(text)}
+            )
+
+            logger.info(f"Successfully posted tweet: {text}")
             return result
 
         except Exception as e:
@@ -130,31 +180,51 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            CRITICAL: Copy the EXACT, VERBATIM text from {count} tweets on timeline.
+            SIMPLE TASK: You are already on Twitter. Just read {count} tweets from the current page.
 
-            STRICT REQUIREMENTS:
-            - Do NOT summarize, paraphrase, or interpret
-            - Copy the complete tweet text word-for-word including emojis, links, hashtags
-            - Extract the exact @username
-            - Go to /home, find tweets, copy their EXACT content
+            STEPS:
+            1. Look at the current page
+            2. Find tweet text and usernames
+            3. Copy exactly what you see
 
-            Format each tweet as:
-            Author: @exactusername
-            Text: [copy exact tweet text here, every character]
+            FORMAT OUTPUT AS:
+            Author: @username
+            Text: exact tweet text
+
+            Do NOT create files, do NOT make todo lists. Just read what's on screen.
             """
+
+            logger.info(f"Starting timeline extraction for {count} tweets...")
 
             agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine.",
-                max_steps=5,  # Limit steps for speed
-                step_timeout=15  # Aggressive timeout
+                system_message="You are on Twitter. Just read tweets from the current page. Do not navigate anywhere. Do not create files. Just extract text from what you can see.",
+                max_steps=3,  # Fewer steps
+                step_timeout=60,  # Longer timeout
+                verbose=True  # Enable debugging
             )
 
             result = await agent.run()
-            logger.info(f"Retrieved timeline tweets")
+            logger.info(f"Timeline extraction completed. Result: {str(result)[:200]}...")
+
+            # Parse tweets and log to memory (excluding ads)
+            tweets = self._parse_tweets_from_result(str(result))
+            logger.info(f"Parsed {len(tweets)} tweets from result")
+
+            for tweet in tweets:
+                interaction_data = {
+                    'type': 'timeline_read',
+                    'text': tweet.get('text', ''),
+                    'author': tweet.get('author', ''),
+                    'indicators': tweet.get('indicators', []),
+                    'success': True
+                }
+                self.memory_manager.log_interaction(interaction_data)
+
+            logger.info(f"Retrieved {len(tweets)} timeline tweets")
             return result
 
         except Exception as e:
@@ -184,10 +254,23 @@ class TwitterBrowserBot:
                 browser_profile=self.fast_browser_profile,
                 system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine.",
                 max_steps=5,  # Limit steps for speed
-                step_timeout=15  # Aggressive timeout
+                step_timeout=30  # Aggressive timeout
             )
 
             result = await agent.run()
+
+            # Parse tweets and log to memory (excluding ads)
+            tweets = self._parse_tweets_from_result(str(result))
+            for tweet in tweets:
+                interaction_data = {
+                    'type': 'user_tweets_read',
+                    'text': tweet.get('text', ''),
+                    'author': tweet.get('author', ''),
+                    'indicators': tweet.get('indicators', []),
+                    'success': True
+                }
+                self.memory_manager.log_interaction(interaction_data)
+
             logger.info(f"Retrieved {count} tweets from @{username}")
             return result
 
@@ -212,10 +295,29 @@ class TwitterBrowserBot:
                 browser_profile=self.fast_browser_profile,
                 system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Reply to tweets immediately.",
                 max_steps=4,  # Few steps for replying
-                step_timeout=12  # Fast timeout
+                step_timeout=30  # Fast timeout
             )
 
             result = await agent.run()
+
+            # Log reply to memory
+            interaction_data = {
+                'type': 'tweet_reply',
+                'text': text,
+                'author': 'self',
+                'indicators': [],
+                'success': True,
+                'tweet_url': tweet_url
+            }
+            self.memory_manager.log_interaction(interaction_data)
+
+            # Update strategy effectiveness for replies
+            self.memory_manager.update_strategy(
+                'tweet_reply',
+                True,
+                {'content_type': 'reply', 'text_length': len(text), 'target_url': tweet_url}
+            )
+
             logger.info(f"Replied to tweet: {text}")
             return result
 
@@ -247,10 +349,24 @@ class TwitterBrowserBot:
                 browser_profile=self.fast_browser_profile,
                 system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine.",
                 max_steps=5,  # Limit steps for speed
-                step_timeout=15  # Aggressive timeout
+                step_timeout=30  # Aggressive timeout
             )
 
             result = await agent.run()
+
+            # Parse tweets and log to memory (excluding ads)
+            tweets = self._parse_tweets_from_result(str(result))
+            for tweet in tweets:
+                interaction_data = {
+                    'type': 'search_result',
+                    'text': tweet.get('text', ''),
+                    'author': tweet.get('author', ''),
+                    'indicators': tweet.get('indicators', []),
+                    'success': True,
+                    'search_query': query
+                }
+                self.memory_manager.log_interaction(interaction_data)
+
             logger.info(f"Found tweets for query: {query}")
             return result
 

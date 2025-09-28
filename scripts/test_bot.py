@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import asyncio
-from twitter_browser_bot import TwitterBrowserBot
+
+# Add src directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from bot.twitter_browser_bot import TwitterBrowserBot
 
 def print_menu():
     """Print the available commands menu"""
