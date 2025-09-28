@@ -68,16 +68,22 @@ TWITTER_PASSWORD=your_twitter_password
 - `data/` directory for memory files
 
 **Memory Types:**
-- `interactions.json` - Log of all bot interactions
+- `interactions.json` - Log of all bot interactions (excluding ads)
 - `friends.json` - Friend profiles and preferences
 - `strategies.json` - Basic engagement patterns
 - `context.json` - Active conversation tracking
 
+**Ad Filtering:**
+- Extract ads for completeness but DO NOT process them for memory/learning
+- Identify promoted tweets, sponsored content, and advertisements
+- Flag content with "Promoted", "Ad", "Sponsored" labels
+- Skip ads in engagement analysis and pattern recognition
+
 **Functionality:**
-- Track successful/failed interactions
-- Store friend communication preferences
-- Log engagement metrics (likes, replies)
-- Basic pattern recognition (what works with whom)
+- Track successful/failed interactions (organic content only)
+- Store friend communication preferences (excluding ad interactions)
+- Log engagement metrics (likes, replies) for real tweets only
+- Basic pattern recognition (what works with whom) - ads ignored
 
 ### Stage 3: Practical Memory System
 **Goal:** Lightweight social memory for realistic Twitter interactions
@@ -99,11 +105,17 @@ pip install sqlite3 (built-in with Python)
 - `patterns` - Successful content types and timing data
 - `conversations` - Active thread tracking and context
 
+**Ad Filtering (Critical):**
+- Extract all content including ads for data completeness
+- Identify promotional content: tweets with "Promoted", "Ad", "Sponsored" indicators
+- Flag advertiser accounts and sponsored content automatically
+- EXCLUDE ads from all memory processing, learning, and engagement analysis
+
 **Functionality:**
-- Track engagement metrics (likes, replies, sentiment)
-- Learn friend communication preferences naturally
-- Identify successful content patterns and timing
-- Maintain conversation context and relationship health
+- Track engagement metrics (likes, replies, sentiment) - organic content only
+- Learn friend communication preferences naturally (excluding ad interactions)
+- Identify successful content patterns and timing (ads ignored)
+- Maintain conversation context and relationship health (real conversations only)
 
 ### Stage 4: Simple Learning Loop
 **Goal:** Basic feedback-driven improvement without over-engineering
@@ -116,18 +128,41 @@ pip install sqlite3 (built-in with Python)
 
 **Learning Process:**
 ```python
-# After each interaction
-engagement = measure_engagement(tweet_id, time_window=1hour)
-update_friend_preferences(friend_id, interaction_type, engagement)
-adjust_strategy_confidence(strategy_type, success_rate)
-maintain_relationship_score(friend_id, engagement_trend)
+# After each interaction (ads filtered out)
+if not is_promotional_content(tweet):
+    engagement = measure_engagement(tweet_id, time_window=1hour)
+    update_friend_preferences(friend_id, interaction_type, engagement)
+    adjust_strategy_confidence(strategy_type, success_rate)
+    maintain_relationship_score(friend_id, engagement_trend)
+else:
+    # Log ad for completeness but skip learning
+    log_promotional_content(tweet, ad_type="promoted")
 ```
 
 **Practical Features:**
-- Friend-specific communication style adaptation
+- Friend-specific communication style adaptation (organic interactions only)
 - Optimal timing discovery (when friends are most active/responsive)
-- Content type effectiveness tracking (jokes vs support vs technical)
+- Content type effectiveness tracking (jokes vs support vs technical) - ads excluded
 - Relationship maintenance alerts (who to check in with)
+
+**Ad Detection Implementation:**
+```python
+def is_promotional_content(tweet_text, author, indicators):
+    ad_markers = ["Promoted", "Ad", "Sponsored", "Learn more"]
+    promoted_indicators = ["Promoted by", "Sponsored content"]
+
+    # Check text for ad markers
+    for marker in ad_markers:
+        if marker in tweet_text or marker in indicators:
+            return True
+
+    # Check for promoted tweet indicators
+    for indicator in promoted_indicators:
+        if indicator in indicators:
+            return True
+
+    return False
+```
 
 ## Browser Automation Details
 

@@ -24,17 +24,21 @@ class TwitterBrowserBot:
             model='claude-sonnet-4-0',
             temperature=0.0
         )
-        # Fast browser profile for regular operations
+        # Ultra-fast browser profile for regular operations
         self.fast_browser_profile = BrowserProfile(
             keep_alive=True,
-            wait_after_load=0.5,  # Reduce wait time
+            minimum_wait_page_load_time=0.1,  # Minimal page load wait
+            wait_for_network_idle_page_load_time=0.2,  # Faster network idle
+            wait_between_actions=0.1,  # Minimal action delays
             disable_security=False,  # Keep security for Twitter
             headless=False  # Keep visible for debugging
         )
         # Conservative profile for login operations
         self.safe_browser_profile = BrowserProfile(
             keep_alive=True,
-            wait_after_load=2.0,  # Longer wait for login
+            minimum_wait_page_load_time=0.5,  # Moderate wait for login
+            wait_for_network_idle_page_load_time=1.0,  # Safer for login
+            wait_between_actions=0.3,  # Slower for login safety
             disable_security=False,
             headless=False
         )
@@ -67,7 +71,9 @@ class TwitterBrowserBot:
                 task=task,
                 llm=self.llm,
                 browser_profile=self.safe_browser_profile,
-                system_message="You are a careful browser agent. Take your time with login operations to avoid triggering security measures. Wait between actions and be patient."
+                system_message="You are a careful but efficient browser agent. Complete login in 3 seconds total. Wait briefly between actions but move steadily.",
+                max_steps=10,  # Limit steps for faster execution
+                step_timeout=30  # Reduce step timeout
             )
 
             logger.info("Starting browser session and logging into Twitter...")
@@ -96,7 +102,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Post tweets immediately."
+                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Post tweets immediately.",
+                max_steps=3,  # Very few steps for posting
+                step_timeout=10  # Fast timeout
             )
 
             result = await agent.run()
@@ -132,7 +140,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine."
+                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine.",
+                max_steps=5,  # Limit steps for speed
+                step_timeout=15  # Aggressive timeout
             )
 
             result = await agent.run()
@@ -164,7 +174,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine."
+                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine.",
+                max_steps=5,  # Limit steps for speed
+                step_timeout=15  # Aggressive timeout
             )
 
             result = await agent.run()
@@ -190,7 +202,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Reply to tweets immediately."
+                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Reply to tweets immediately.",
+                max_steps=4,  # Few steps for replying
+                step_timeout=12  # Fast timeout
             )
 
             result = await agent.run()
@@ -223,7 +237,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine."
+                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine.",
+                max_steps=5,  # Limit steps for speed
+                step_timeout=15  # Aggressive timeout
             )
 
             result = await agent.run()
