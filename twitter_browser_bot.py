@@ -27,20 +27,22 @@ class TwitterBrowserBot:
         # Ultra-fast browser profile for regular operations
         self.fast_browser_profile = BrowserProfile(
             keep_alive=True,
-            minimum_wait_page_load_time=0.1,  # Minimal page load wait
-            wait_for_network_idle_page_load_time=0.2,  # Faster network idle
-            wait_between_actions=0.1,  # Minimal action delays
+            minimum_wait_page_load_time=0.05,  # Ultra-minimal page load wait
+            wait_for_network_idle_page_load_time=0.1,  # Ultra-fast network idle
+            wait_between_actions=0.05,  # Ultra-minimal action delays
             disable_security=False,  # Keep security for Twitter
-            headless=False  # Keep visible for debugging
+            headless=False,  
+            enable_default_extensions=False  # Disable extensions for speed
         )
         # Conservative profile for login operations
         self.safe_browser_profile = BrowserProfile(
             keep_alive=True,
-            minimum_wait_page_load_time=0.5,  # Moderate wait for login
-            wait_for_network_idle_page_load_time=1.0,  # Safer for login
-            wait_between_actions=0.3,  # Slower for login safety
+            minimum_wait_page_load_time=0.3,  # Moderate wait for login
+            wait_for_network_idle_page_load_time=0.8,  # Safer for login
+            wait_between_actions=0.2,  # Slower for login safety
             disable_security=False,
-            headless=False
+            headless=False,  
+            enable_default_extensions=False  # Disable extensions for speed
         )
 
     async def start_session(self):
@@ -72,8 +74,11 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_profile=self.safe_browser_profile,
                 system_message="You are a careful but efficient browser agent. Complete login in 3 seconds total. Wait briefly between actions but move steadily.",
-                max_steps=10,  # Limit steps for faster execution
-                step_timeout=30  # Reduce step timeout
+                max_steps=8,  # Limit steps for faster execution
+                step_timeout=20,  # Reduce step timeout
+                flash_mode=True,  # Enable flash mode for speed
+                use_thinking=False,  # Disable thinking for speed
+                max_actions_per_step=2  # Conservative action limit for login
             )
 
             logger.info("Starting browser session and logging into Twitter...")
@@ -104,7 +109,10 @@ class TwitterBrowserBot:
                 browser_profile=self.fast_browser_profile,
                 system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Post tweets immediately.",
                 max_steps=3,  # Very few steps for posting
-                step_timeout=10  # Fast timeout
+                step_timeout=10,  # Fast timeout
+                flash_mode=True,  # Enable flash mode for speed
+                use_thinking=False,  # Disable thinking for speed
+                max_actions_per_step=3  # Limit actions per step
             )
 
             result = await agent.run()
