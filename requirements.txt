@@ -1,1 +1,3 @@
-twikit
+browser-use
+anthropic
+python-dotenv

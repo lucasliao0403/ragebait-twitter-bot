@@ -2,80 +2,150 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPLEMENTATION INSTRUCTIONS
+
+- When implementing features, implement exactly the minimum and no more. No testing or examples unless otherwise specified.
+- If importing any new packages, make sure to update /requirements.txt
+
 ## Project Overview
 
-This is a Dynamic Twitter Bot for Tech Trend Engagement that uses adaptive learning through CoALA memory architecture and LangGraph for stateful agent orchestration. The bot learns and responds to real-time tech Twitter trends without hard-coded behaviors.
+This is a Dynamic Twitter Bot for Tech Trend Engagement that uses browser automation via browser-use library and adaptive learning through CoALA memory architecture. The bot uses an AI agent to navigate Twitter naturally through a browser interface and learns from interactions to improve engagement strategies.
+
+## Key References
+
+**IMPORTANT**: Claude Code should refer to these links whenever implementing features or troubleshooting issues:
+
+- **[CoALA Paper](https://arxiv.org/html/2309.02427v3#S4)**: Cognitive Architectures for Language Agents - theoretical framework for memory architecture implementation
+- **[Browser-use GitHub](https://github.com/browser-use/browser-use)**: Browser automation library documentation, examples, and API reference
 
 ## Coding Practices (IMPORTANT)
 
-- When implementation features, implement exactly the minimum and no more. No testing or examples unless otherwise specified.
+- When implementing features, implement exactly the minimum and no more. No testing or examples unless otherwise specified.
 - If importing any new packages, make sure to update /requirements.txt
 
-## Development Commands
+## Implementation Stages
 
-### Environment Setup
+### Stage 1: Basic Browser Agent (Start Here)
+**Goal:** Simple browser bot that can interact with Twitter
+
+**Environment Setup:**
 ```bash
-pip install twikit langgraph langchain openai asyncpg
-python3 setup_database.py
-python3 login_twitter.py  # Only run ONCE - saves cookies to cookies.json
+pip install browser-use anthropic python-dotenv
 ```
 
-### Core Operations (Rate-Limited)
-```bash
-# Analyze friend behavior patterns (max 10 friends per hour)
-python3 analyze_friends.py --friends="friend1,friend2,friend3" --delay=5
-
-# Update tech trends (max once every 30 minutes)
-python3 update_trends.py --delay=10
-
-# Generate responses safely (no API calls)
-python3 generate_responses.py --count=30 --delay=3
-
-# Post approved content (max 3 posts, 30-min spacing)
-python3 post_responses.py --file="proposed_responses.json" --max-posts=3 --spacing=30min
-
-# Measure engagement and learn
-python3 measure_engagement.py --hours=24 --delay=5
+**Environment Variables (.env):**
+```
+ANTHROPIC_API_KEY=your_anthropic_api_key
+TWITTER_USERNAME=your_twitter_username
+TWITTER_PASSWORD=your_twitter_password
 ```
 
-### Maintenance Commands
+**Core Files:**
+- `twitter_browser_bot.py` - Main bot class with session management
+- `test_bot.py` - Simple CLI for manual testing
+
+**Functionality:**
+- `start_session()` - Open browser and login
+- `post_tweet(text)` - Post a tweet
+- `get_timeline(count=10)` - Read home timeline
+- `get_user_tweets(username, count=10)` - Get specific user's tweets
+- `reply_to_tweet(tweet_url, text)` - Reply to tweets
+- `search_tweets(query, count=10)` - Search functionality
+- `save_session()` - Save browser state manually
+- `close_session()` - Close browser
+
+**Session Management:**
+- Persistent browser session (stays open between operations)
+- Manual session save/load to avoid repeated logins
+- 2FA support with manual input pause
+- Simple error handling (log and exit)
+
+### Stage 2: Basic Memory System
+**Goal:** JSON-based memory to track interactions and patterns
+
+**Additional Files:**
+- `memory_manager.py` - Simple JSON storage and retrieval
+- `data/` directory for memory files
+
+**Memory Types:**
+- `interactions.json` - Log of all bot interactions
+- `friends.json` - Friend profiles and preferences
+- `strategies.json` - Basic engagement patterns
+- `context.json` - Active conversation tracking
+
+**Functionality:**
+- Track successful/failed interactions
+- Store friend communication preferences
+- Log engagement metrics (likes, replies)
+- Basic pattern recognition (what works with whom)
+
+### Stage 3: Practical Memory System
+**Goal:** Lightweight social memory for realistic Twitter interactions
+
+**Environment Setup:**
 ```bash
-python3 optimize_memory.py      # Weekly memory cleanup
-python3 analyze_patterns.py     # Pattern analysis
-python3 system_stats.py         # Performance monitoring
+pip install sqlite3 (built-in with Python)
 ```
 
-## Architecture Overview
+**Memory Architecture:**
+- **Session Context:** Current browser state and active conversations
+- **Recent Interactions:** Last 100 tweets/replies with engagement metrics
+- **Friend Profiles:** Communication styles, preferences, relationship health
+- **Success Patterns:** What content works, optimal timing, effective strategies
 
-### CoALA Memory System (PostgreSQL + pgvector)
-- **Trend Memory Table**: Time-sensitive trending topics with GPT-4o tech relevance classification
-- **Pattern Memory Table**: Engagement strategies with vector embeddings for semantic search
-- **Network Memory Table**: Friend behaviors, communication styles, and relationship dynamics
-- **Context Memory Table**: Conversation histories and thread tracking
+**Database Schema (SQLite):**
+- `interactions` - Tweet/reply history with engagement metrics
+- `friends` - Individual profiles and communication preferences
+- `patterns` - Successful content types and timing data
+- `conversations` - Active thread tracking and context
 
-### LangGraph Agent Framework
-- **create_react_agent** with PostgresSaver checkpointer using GPT-4o
-- **Memory Manager**: Custom CRUD interface across all memory types
-- **CoALA-Inspired Tools**: read_trends(), analyze_patterns(), recall_friend_context(), post_tweet(), learn_from_interaction()
+**Functionality:**
+- Track engagement metrics (likes, replies, sentiment)
+- Learn friend communication preferences naturally
+- Identify successful content patterns and timing
+- Maintain conversation context and relationship health
 
-### Twikit Integration
-- Cookie-based authentication (no repeated logins)
-- Built-in rate limiting with exponential backoff
-- Account protection through request spacing and daily quotas
+### Stage 4: Simple Learning Loop
+**Goal:** Basic feedback-driven improvement without over-engineering
 
-## Critical Rate Limiting Rules
+**Functionality:**
+- **Engagement Tracking:** Monitor likes, replies, unfollows for each interaction
+- **Pattern Recognition:** Identify what works with specific friends and timing
+- **Strategy Adjustment:** Simple rules based on clear success/failure signals
+- **Relationship Monitoring:** Track friendship health and adjust approach
 
-### Account Safety Requirements
-- **5-second minimum delays** between all requests
-- **Maximum 50 requests per hour** across all operations
-- **Maximum 5-10 tweets per day** with 30+ minute spacing
-- **24-hour cooldown** after hitting rate limits
-- **Never run commands back-to-back** - always include sleep delays
+**Learning Process:**
+```python
+# After each interaction
+engagement = measure_engagement(tweet_id, time_window=1hour)
+update_friend_preferences(friend_id, interaction_type, engagement)
+adjust_strategy_confidence(strategy_type, success_rate)
+maintain_relationship_score(friend_id, engagement_trend)
+```
 
-### Authentication Protocol
-- Login **ONCE** with `login_twitter.py` and save cookies to `cookies.json`
-- Reuse cookies for all subsequent operations
-- Only re-login if cookies expire (24-48 hours)
+**Practical Features:**
+- Friend-specific communication style adaptation
+- Optimal timing discovery (when friends are most active/responsive)
+- Content type effectiveness tracking (jokes vs support vs technical)
+- Relationship maintenance alerts (who to check in with)
+
+## Browser Automation Details
+
+### Session Lifecycle
+```
+start_session() → login_to_twitter() → [perform_operations()] → save_session() → close_session()
+```
+
+### Error Handling
+- Browser crashes: Log error and exit
+- Cloudflare challenges: Pause for manual intervention
+- Login failures: Retry once, then exit
+- 2FA prompts: Pause and wait for manual input
+
+### Rate Limiting
+- Natural browser timing (browser-use handles this)
+- Conservative operation spacing
+- Monitor for Twitter rate limit warnings
 
 ## Content Guidelines
 
@@ -87,34 +157,16 @@ python3 system_stats.py         # Performance monitoring
 ### Prohibited Content
 - Politics, discrimination, hate speech, violence, sexual content
 
-## Development Workflow
+## Testing Workflow
 
-1. **Start with `generate_responses.py`** for safe content creation
-2. **Always review proposed_responses.json** before posting
-3. **Use manual approval workflow** for all posts
-4. **Monitor engagement** with `measure_engagement.py`
-5. **Run memory cleanup weekly** with `optimize_memory.py`
+1. **Stage 1:** Test basic browser operations manually
+2. **Stage 2:** Verify memory storage and retrieval
+3. **Stage 3:** Test memory-driven decision making
+4. **Stage 4:** Monitor learning and adaptation
 
-## Database Schema
+## Safety Considerations
 
-The system uses a single PostgreSQL instance with pgvector extension containing:
-- Memory tables for CoALA architecture
-- LangGraph checkpoints for state persistence
-- Vector embeddings for semantic similarity search
-- Performance indexes for query optimization
-
-## Configuration Requirements
-
-Create `config.ini` with:
-- Twitter credentials (username, email, password)
-- OpenAI API key for GPT-4o integration
-- PostgreSQL connection string
-- Rate limiting parameters (delays, request limits, cooldowns)
-
-## Testing and Safety
-
-- **Test offline first** using `generate_responses.py`
-- **Start with 2-3 close friends** who know about the bot
-- **Monitor both positive and negative feedback** patterns
-- **Implement exponential backoff** for API errors
-- **Track all API calls** and response times for debugging
+- Start with test account or close friends
+- Monitor bot behavior closely in early stages
+- Implement kill switches for runaway behavior
+- Regular memory audits to prevent drift
