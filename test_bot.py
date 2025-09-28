@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import asyncio
 from twitter_browser_bot import TwitterBrowserBot
 
 def print_menu():
@@ -17,7 +18,7 @@ def print_menu():
     print("9. Exit")
     print("=====================================")
 
-def main():
+async def main():
     bot = TwitterBrowserBot()
 
     print("Welcome to Twitter Browser Bot Test CLI!")
@@ -30,7 +31,7 @@ def main():
         try:
             if choice == "1":
                 print("Starting session and logging in...")
-                bot.start_session()
+                await bot.start_session()
                 print("✓ Successfully logged in!")
 
             elif choice == "2":
@@ -40,7 +41,7 @@ def main():
 
                 text = input("Enter tweet text: ").strip()
                 if text:
-                    bot.post_tweet(text)
+                    await bot.post_tweet(text)
                     print("✓ Tweet posted!")
                 else:
                     print("❌ Tweet text cannot be empty.")
@@ -54,12 +55,11 @@ def main():
                 count = int(count) if count.isdigit() else 10
 
                 print(f"Fetching {count} tweets from timeline...")
-                tweets = bot.get_timeline(count)
-
-                print(f"\n--- Timeline ({len(tweets)} tweets) ---")
-                for i, tweet in enumerate(tweets, 1):
-                    print(f"{i}. @{tweet['author']}: {tweet['text'][:100]}...")
+                result = await bot.get_timeline(count)
+                print(f"\n--- Timeline Results ---")
+                print(result)
                 print("--- End Timeline ---")
+
 
             elif choice == "4":
                 if not bot.logged_in:
@@ -75,12 +75,11 @@ def main():
                 count = int(count) if count.isdigit() else 10
 
                 print(f"Fetching {count} tweets from @{username}...")
-                tweets = bot.get_user_tweets(username, count)
-
-                print(f"\n--- @{username} Tweets ({len(tweets)} tweets) ---")
-                for i, tweet in enumerate(tweets, 1):
-                    print(f"{i}. {tweet['text'][:100]}...")
+                result = await bot.get_user_tweets(username, count)
+                print(f"\n--- @{username} Tweets ---")
+                print(result)
                 print("--- End User Tweets ---")
+
 
             elif choice == "5":
                 if not bot.logged_in:
@@ -97,7 +96,7 @@ def main():
                     print("❌ Reply text cannot be empty.")
                     continue
 
-                bot.reply_to_tweet(tweet_url, reply_text)
+                await bot.reply_to_tweet(tweet_url, reply_text)
                 print("✓ Reply posted!")
 
             elif choice == "6":
@@ -114,12 +113,11 @@ def main():
                 count = int(count) if count.isdigit() else 10
 
                 print(f"Searching for '{query}'...")
-                tweets = bot.search_tweets(query, count)
-
-                print(f"\n--- Search Results for '{query}' ({len(tweets)} tweets) ---")
-                for i, tweet in enumerate(tweets, 1):
-                    print(f"{i}. @{tweet['author']}: {tweet['text'][:100]}...")
+                result = await bot.search_tweets(query, count)
+                print(f"\n--- Search Results for '{query}' ---")
+                print(result)
                 print("--- End Search Results ---")
+
 
             elif choice == "7":
                 bot.save_session()
@@ -148,4 +146,4 @@ def main():
             print("Please try again or restart the session.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

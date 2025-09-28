@@ -1,11 +1,15 @@
 import os
-import time
+import asyncio
 import logging
-from browser_use import Browser
+from browser_use import Agent
+from browser_use.llm import ChatAnthropic
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Set browser-use config directory to local project directory
+os.environ['BROWSER_USE_CONFIG_DIR'] = os.path.join(os.getcwd(), '.browser_use_config')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,212 +17,185 @@ logger = logging.getLogger(__name__)
 
 class TwitterBrowserBot:
     def __init__(self):
-        self.browser = None
-        self.page = None
+        self.agent = None
         self.logged_in = False
+        self.llm = ChatAnthropic(
+            model='claude-sonnet-4-0',
+            temperature=0.0
+        )
 
-    def start_session(self):
+    async def start_session(self):
         """Open browser and login to Twitter"""
         try:
-            # Initialize browser
-            self.browser = Browser()
-            self.page = self.browser.new_page()
-
-            # Navigate to Twitter login
-            logger.info("Navigating to Twitter login...")
-            self.page.goto("https://twitter.com/i/flow/login")
-
-            # Wait for page to load
-            time.sleep(3)
-
-            # Enter username
             username = os.getenv("TWITTER_USERNAME")
-            if not username:
-                raise ValueError("TWITTER_USERNAME not set in environment variables")
-
-            username_field = self.page.wait_for_selector('input[name="text"]')
-            username_field.fill(username)
-
-            # Click next button
-            next_button = self.page.get_by_role("button", name="Next")
-            next_button.click()
-
-            time.sleep(2)
-
-            # Enter password
             password = os.getenv("TWITTER_PASSWORD")
-            if not password:
-                raise ValueError("TWITTER_PASSWORD not set in environment variables")
 
-            password_field = self.page.wait_for_selector('input[name="password"]')
-            password_field.fill(password)
+            if not username or not password:
+                raise ValueError("TWITTER_USERNAME and TWITTER_PASSWORD must be set in environment variables")
 
-            # Click login button
-            login_button = self.page.get_by_role("button", name="Log in")
-            login_button.click()
+            task = f"""
+            Go to Twitter (twitter.com) and log in with these credentials:
+            Username: {username}
+            Password: {password}
 
-            # Check for 2FA or other challenges
-            time.sleep(5)
+            If there's a 2FA challenge, wait for manual intervention.
+            Navigate to the home timeline after successful login.
+            """
 
-            # Check if we're logged in by looking for home timeline
-            try:
-                self.page.wait_for_selector('[data-testid="primaryColumn"]', timeout=10000)
-                self.logged_in = True
-                logger.info("Successfully logged in to Twitter")
-            except:
-                # Might be 2FA or other challenge
-                logger.warning("Login may require 2FA or manual intervention. Please complete and press Enter.")
-                input("Press Enter after completing login manually...")
-                self.logged_in = True
+            self.agent = Agent(
+                task=task,
+                llm=self.llm
+            )
+
+            logger.info("Starting browser session and logging into Twitter...")
+            result = await self.agent.run()
+            self.logged_in = True
+            logger.info("Successfully logged in to Twitter")
+            return result
 
         except Exception as e:
             logger.error(f"Error starting session: {e}")
-            if self.browser:
-                self.browser.close()
             raise
 
-    def post_tweet(self, text):
+    async def post_tweet(self, text):
         """Post a tweet"""
         if not self.logged_in:
             raise Exception("Not logged in. Call start_session() first.")
 
         try:
-            # Click on tweet compose button
-            compose_button = self.page.get_by_test_id("SideNav_NewTweet_Button")
-            compose_button.click()
+            task = f"""
+            Post a tweet on Twitter with this exact text:
+            "{text}"
 
-            time.sleep(2)
+            Steps:
+            1. Click the compose tweet button (usually says "Post" or has a plus icon)
+            2. Enter the text in the tweet compose box
+            3. Click the "Post" button to publish the tweet
+            """
 
-            # Enter tweet text
-            tweet_textbox = self.page.get_by_test_id("tweetTextarea_0")
-            tweet_textbox.fill(text)
+            agent = Agent(
+                task=task,
+                llm=self.llm
+            )
 
-            time.sleep(1)
-
-            # Click tweet button
-            tweet_button = self.page.get_by_test_id("tweetButtonInline")
-            tweet_button.click()
-
-            time.sleep(2)
-
+            result = await agent.run()
             logger.info(f"Posted tweet: {text}")
+            return result
 
         except Exception as e:
             logger.error(f"Error posting tweet: {e}")
             raise
 
-    def get_timeline(self, count=10):
+    async def get_timeline(self, count=10):
         """Read home timeline"""
         if not self.logged_in:
             raise Exception("Not logged in. Call start_session() first.")
 
         try:
-            # Navigate to home timeline
-            self.page.goto("https://twitter.com/home")
-            time.sleep(3)
+            task = f"""
+            Go to the Twitter home timeline and extract the text and author information from the first {count} tweets.
 
-            tweets = []
-            tweet_elements = self.page.get_by_test_id("tweet").take(count)
+            Return the information in this format for each tweet:
+            - Author: [username]
+            - Text: [tweet content]
 
-            for element in tweet_elements:
-                try:
-                    tweet_text = element.get_by_test_id("tweetText").inner_text()
-                    author = element.get_by_test_id("User-Name").inner_text()
-                    tweets.append({"author": author, "text": tweet_text})
-                except:
-                    continue
+            Navigate to twitter.com/home if not already there.
+            """
 
-            logger.info(f"Retrieved {len(tweets)} tweets from timeline")
-            return tweets
+            agent = Agent(
+                task=task,
+                llm=self.llm
+            )
+
+            result = await agent.run()
+            logger.info(f"Retrieved timeline tweets")
+            return result
 
         except Exception as e:
             logger.error(f"Error getting timeline: {e}")
             raise
 
-    def get_user_tweets(self, username, count=10):
+    async def get_user_tweets(self, username, count=10):
         """Get specific user's tweets"""
         if not self.logged_in:
             raise Exception("Not logged in. Call start_session() first.")
 
         try:
-            # Navigate to user profile
-            self.page.goto(f"https://twitter.com/{username}")
-            time.sleep(3)
+            task = f"""
+            Go to the Twitter profile of @{username} and extract the text from their latest {count} tweets.
 
-            tweets = []
-            tweet_elements = self.page.get_by_test_id("tweet").take(count)
+            Steps:
+            1. Navigate to twitter.com/{username}
+            2. Find the tweet content from their latest {count} posts
+            3. Return the tweet text for each one
+            """
 
-            for element in tweet_elements:
-                try:
-                    tweet_text = element.get_by_test_id("tweetText").inner_text()
-                    tweets.append({"author": username, "text": tweet_text})
-                except:
-                    continue
+            agent = Agent(
+                task=task,
+                llm=self.llm
+            )
 
-            logger.info(f"Retrieved {len(tweets)} tweets from @{username}")
-            return tweets
+            result = await agent.run()
+            logger.info(f"Retrieved {count} tweets from @{username}")
+            return result
 
         except Exception as e:
             logger.error(f"Error getting user tweets: {e}")
             raise
 
-    def reply_to_tweet(self, tweet_url, text):
+    async def reply_to_tweet(self, tweet_url, text):
         """Reply to a tweet"""
         if not self.logged_in:
             raise Exception("Not logged in. Call start_session() first.")
 
         try:
-            # Navigate to tweet
-            self.page.goto(tweet_url)
-            time.sleep(3)
+            task = f"""
+            Reply to a tweet with this exact text:
+            "{text}"
 
-            # Click reply button
-            reply_button = self.page.get_by_test_id("reply").first
-            reply_button.click()
+            Steps:
+            1. Go to this tweet URL: {tweet_url}
+            2. Click the reply button on the tweet
+            3. Enter the reply text in the compose box
+            4. Click the reply/post button to send the reply
+            """
 
-            time.sleep(2)
+            agent = Agent(
+                task=task,
+                llm=self.llm
+            )
 
-            # Enter reply text
-            reply_textbox = self.page.get_by_test_id("tweetTextarea_0")
-            reply_textbox.fill(text)
-
-            time.sleep(1)
-
-            # Click reply button
-            send_reply_button = self.page.get_by_test_id("tweetButtonInline")
-            send_reply_button.click()
-
-            time.sleep(2)
-
+            result = await agent.run()
             logger.info(f"Replied to tweet: {text}")
+            return result
 
         except Exception as e:
             logger.error(f"Error replying to tweet: {e}")
             raise
 
-    def search_tweets(self, query, count=10):
+    async def search_tweets(self, query, count=10):
         """Search for tweets"""
         if not self.logged_in:
             raise Exception("Not logged in. Call start_session() first.")
 
         try:
-            # Navigate to search
-            self.page.goto(f"https://twitter.com/search?q={query}&src=typed_query")
-            time.sleep(3)
+            task = f"""
+            Search for tweets on Twitter using this query: "{query}"
 
-            tweets = []
-            tweet_elements = self.page.get_by_test_id("tweet").take(count)
+            Steps:
+            1. Use Twitter's search function to search for: {query}
+            2. Extract the text and author information from the first {count} search results
+            3. Return the tweet content and usernames
+            """
 
-            for element in tweet_elements:
-                try:
-                    tweet_text = element.get_by_test_id("tweetText").inner_text()
-                    author = element.get_by_test_id("User-Name").inner_text()
-                    tweets.append({"author": author, "text": tweet_text, "query": query})
-                except:
-                    continue
+            agent = Agent(
+                task=task,
+                llm=self.llm
+            )
 
-            logger.info(f"Found {len(tweets)} tweets for query: {query}")
-            return tweets
+            result = await agent.run()
+            logger.info(f"Found tweets for query: {query}")
+            return result
 
         except Exception as e:
             logger.error(f"Error searching tweets: {e}")
@@ -227,8 +204,7 @@ class TwitterBrowserBot:
     def save_session(self):
         """Save browser state manually"""
         try:
-            if self.browser:
-                # Save browser context/state
+            if self.agent:
                 logger.info("Session state saved (browser remains open)")
             else:
                 logger.warning("No active browser session to save")
@@ -238,10 +214,9 @@ class TwitterBrowserBot:
     def close_session(self):
         """Close browser"""
         try:
-            if self.browser:
-                self.browser.close()
-                self.browser = None
-                self.page = None
+            if self.agent:
+                # Browser-use handles cleanup automatically
+                self.agent = None
                 self.logged_in = False
                 logger.info("Browser session closed")
         except Exception as e:
