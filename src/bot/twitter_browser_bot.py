@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from browser_use import Agent, BrowserProfile
-from browser_use.llm import ChatAnthropic
+from browser_use.llm import ChatGroq
 from dotenv import load_dotenv
 from .memory_manager import MemoryManager
 
@@ -22,10 +22,17 @@ class TwitterBrowserBot:
         self.browser_session = None
         self.logged_in = False
         self.memory_manager = MemoryManager()
-        self.llm = ChatAnthropic(
-            model='claude-sonnet-4-0',
-            temperature=0.0
-        )
+
+        api_key = os.getenv('GROQ_API_KEY')
+        try:
+            self.llm = ChatGroq(
+                model='meta-llama/llama-4-scout-17b-16e-instruct',
+                api_key=api_key,
+                temperature=0.0
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize ChatGroq: {e}")
+            raise
         # Ultra-fast browser profile for regular operations
         self.fast_browser_profile = BrowserProfile(
             keep_alive=True,
@@ -79,37 +86,42 @@ class TwitterBrowserBot:
                 raise ValueError("TWITTER_USERNAME and TWITTER_PASSWORD must be set in environment variables")
 
             task = f"""
-            CAREFUL LOGIN: Go to Twitter (twitter.com) and log in slowly and carefully:
-            Username: {username}
-            Password: {password}
+            LOGIN TO TWITTER - FOLLOW EXACT SEQUENCE:
 
-            Take your time with each step to avoid detection:
-            1. Wait for page to fully load
-            2. Find username field and enter username
-            3. Click Next and wait
-            4. Find password field and enter password
-            5. Click Log in and wait
-            6. Handle any 2FA if needed
-            7. Navigate to home timeline
+            1. You are already on Twitter.com
+            2. Look for and click the "Sign in" button
+            3. Enter username: {username}
+            4. IMPORTANT: Click the blue "Next" button (NOT "Forgot password" or "Reset password")
+            5. Enter password: {password}
+            6. IMPORTANT: Click the blue "Log in" button (NOT "Forgot password" or any reset links)
+            7. If successful, you should see the home timeline
+
+            CRITICAL RULES:
+            - ONLY click primary buttons for "Next" and "Log in"
+            - NEVER click "Forgot password", "Reset password", or any password reset links
+            - IGNORE all secondary/link buttons that mention password recovery
+            - Focus on the main login flow buttons only
+
+            DO NOT:
+            - Create todo files
+            - Wait unnecessarily
+            - Click password reset options
+            - Navigate away from login flow
             """
 
             self.agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_profile=self.safe_browser_profile,
-                system_message="You are a careful but efficient browser agent. Complete login in 3 seconds total. Wait briefly between actions but move steadily.",
-                max_steps=8,  # Limit steps for faster execution
-                step_timeout=20,  # Reduce step timeout
-                flash_mode=True,  # Enable flash mode for speed
-                use_thinking=False,  # Disable thinking for speed
-                max_actions_per_step=2  # Conservative action limit for login
+                system_message="You are a Twitter login specialist. CRITICAL: Only click primary buttons (Next/Log in). NEVER click 'Forgot password', 'Reset password', or any password recovery links. Focus exclusively on the main login flow.",
+                max_steps=6,
+                step_timeout=45,
+                verbose=True
             )
 
-            logger.info("Starting browser session and logging into Twitter...")
             result = await self.agent.run()
             self.browser_session = self.agent.browser_session
             self.logged_in = True
-            logger.info("Successfully logged in to Twitter")
             return result
 
         except Exception as e:
@@ -133,21 +145,18 @@ class TwitterBrowserBot:
             Keep it simple and direct.
             """
 
-            logger.info(f"Starting tweet post: {text[:50]}...")
-
             agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
                 system_message="You are on Twitter. Find the compose button, type the tweet, and post it. Keep it simple.",
-                max_steps=4,  # More steps for reliability
-                step_timeout=45,  # Longer timeout
-                verbose=True  # Enable debugging
+                max_steps=4,
+                step_timeout=45,
+                verbose=True
             )
 
             result = await agent.run()
-            logger.info(f"Tweet posting completed. Result: {str(result)[:100]}...")
 
             # Log tweet posting to memory
             interaction_data = {
@@ -166,7 +175,6 @@ class TwitterBrowserBot:
                 {'content_type': 'original_tweet', 'text_length': len(text)}
             )
 
-            logger.info(f"Successfully posted tweet: {text}")
             return result
 
         except Exception as e:
@@ -194,25 +202,21 @@ class TwitterBrowserBot:
             Do NOT create files, do NOT make todo lists. Just read what's on screen.
             """
 
-            logger.info(f"Starting timeline extraction for {count} tweets...")
-
             agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
                 system_message="You are on Twitter. Just read tweets from the current page. Do not navigate anywhere. Do not create files. Just extract text from what you can see.",
-                max_steps=3,  # Fewer steps
-                step_timeout=60,  # Longer timeout
-                verbose=True  # Enable debugging
+                max_steps=3,
+                step_timeout=60,
+                verbose=True
             )
 
             result = await agent.run()
-            logger.info(f"Timeline extraction completed. Result: {str(result)[:200]}...")
 
             # Parse tweets and log to memory (excluding ads)
             tweets = self._parse_tweets_from_result(str(result))
-            logger.info(f"Parsed {len(tweets)} tweets from result")
 
             for tweet in tweets:
                 interaction_data = {
@@ -224,7 +228,6 @@ class TwitterBrowserBot:
                 }
                 self.memory_manager.log_interaction(interaction_data)
 
-            logger.info(f"Retrieved {len(tweets)} timeline tweets")
             return result
 
         except Exception as e:
@@ -271,7 +274,6 @@ class TwitterBrowserBot:
                 }
                 self.memory_manager.log_interaction(interaction_data)
 
-            logger.info(f"Retrieved {count} tweets from @{username}")
             return result
 
         except Exception as e:
@@ -295,8 +297,8 @@ class TwitterBrowserBot:
                 browser_profile=self.fast_browser_profile,
                 system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Reply to tweets immediately.",
                 max_steps=4,  # Few steps for replying
-                step_timeout=30  # Fast timeout
-            )
+                step_timeout=45  # Fast timeout
+            )   
 
             result = await agent.run()
 
@@ -318,7 +320,6 @@ class TwitterBrowserBot:
                 {'content_type': 'reply', 'text_length': len(text), 'target_url': tweet_url}
             )
 
-            logger.info(f"Replied to tweet: {text}")
             return result
 
         except Exception as e:
@@ -367,7 +368,6 @@ class TwitterBrowserBot:
                 }
                 self.memory_manager.log_interaction(interaction_data)
 
-            logger.info(f"Found tweets for query: {query}")
             return result
 
         except Exception as e:
@@ -377,9 +377,7 @@ class TwitterBrowserBot:
     def save_session(self):
         """Save browser state manually"""
         try:
-            if self.agent:
-                logger.info("Session state saved (browser remains open)")
-            else:
+            if not self.agent:
                 logger.warning("No active browser session to save")
         except Exception as e:
             logger.error(f"Error saving session: {e}")
@@ -392,6 +390,5 @@ class TwitterBrowserBot:
                 self.browser_session = None
                 self.agent = None
                 self.logged_in = False
-                logger.info("Browser session closed")
         except Exception as e:
             logger.error(f"Error closing session: {e}")

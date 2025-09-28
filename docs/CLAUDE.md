@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - When implementing features, implement exactly the minimum and no more. No testing or examples unless otherwise specified.
 - If importing any new packages, make sure to update /requirements.txt
+- NEVER read .env files
 
 ## Project Overview
 
