@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from browser_use import Agent
+from browser_use import Agent, BrowserProfile
 from browser_use.llm import ChatAnthropic
 from dotenv import load_dotenv
 
@@ -18,10 +18,25 @@ logger = logging.getLogger(__name__)
 class TwitterBrowserBot:
     def __init__(self):
         self.agent = None
+        self.browser_session = None
         self.logged_in = False
         self.llm = ChatAnthropic(
             model='claude-sonnet-4-0',
             temperature=0.0
+        )
+        # Fast browser profile for regular operations
+        self.fast_browser_profile = BrowserProfile(
+            keep_alive=True,
+            wait_after_load=0.5,  # Reduce wait time
+            disable_security=False,  # Keep security for Twitter
+            headless=False  # Keep visible for debugging
+        )
+        # Conservative profile for login operations
+        self.safe_browser_profile = BrowserProfile(
+            keep_alive=True,
+            wait_after_load=2.0,  # Longer wait for login
+            disable_security=False,
+            headless=False
         )
 
     async def start_session(self):
@@ -34,21 +49,30 @@ class TwitterBrowserBot:
                 raise ValueError("TWITTER_USERNAME and TWITTER_PASSWORD must be set in environment variables")
 
             task = f"""
-            Go to Twitter (twitter.com) and log in with these credentials:
+            CAREFUL LOGIN: Go to Twitter (twitter.com) and log in slowly and carefully:
             Username: {username}
             Password: {password}
 
-            If there's a 2FA challenge, wait for manual intervention.
-            Navigate to the home timeline after successful login.
+            Take your time with each step to avoid detection:
+            1. Wait for page to fully load
+            2. Find username field and enter username
+            3. Click Next and wait
+            4. Find password field and enter password
+            5. Click Log in and wait
+            6. Handle any 2FA if needed
+            7. Navigate to home timeline
             """
 
             self.agent = Agent(
                 task=task,
-                llm=self.llm
+                llm=self.llm,
+                browser_profile=self.safe_browser_profile,
+                system_message="You are a careful browser agent. Take your time with login operations to avoid triggering security measures. Wait between actions and be patient."
             )
 
             logger.info("Starting browser session and logging into Twitter...")
             result = await self.agent.run()
+            self.browser_session = self.agent.browser_session
             self.logged_in = True
             logger.info("Successfully logged in to Twitter")
             return result
@@ -64,18 +88,15 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Post a tweet on Twitter with this exact text:
-            "{text}"
-
-            Steps:
-            1. Click the compose tweet button (usually says "Post" or has a plus icon)
-            2. Enter the text in the tweet compose box
-            3. Click the "Post" button to publish the tweet
+            FAST: Post tweet "{text}" - click compose, type text, click post. Be quick and direct.
             """
 
             agent = Agent(
                 task=task,
-                llm=self.llm
+                llm=self.llm,
+                browser_session=self.browser_session,
+                browser_profile=self.fast_browser_profile,
+                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Post tweets immediately."
             )
 
             result = await agent.run()
@@ -93,18 +114,25 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Go to the Twitter home timeline and extract the text and author information from the first {count} tweets.
+            CRITICAL: Copy the EXACT, VERBATIM text from {count} tweets on timeline.
 
-            Return the information in this format for each tweet:
-            - Author: [username]
-            - Text: [tweet content]
+            STRICT REQUIREMENTS:
+            - Do NOT summarize, paraphrase, or interpret
+            - Copy the complete tweet text word-for-word including emojis, links, hashtags
+            - Extract the exact @username
+            - Go to /home, find tweets, copy their EXACT content
 
-            Navigate to twitter.com/home if not already there.
+            Format each tweet as:
+            Author: @exactusername
+            Text: [copy exact tweet text here, every character]
             """
 
             agent = Agent(
                 task=task,
-                llm=self.llm
+                llm=self.llm,
+                browser_session=self.browser_session,
+                browser_profile=self.fast_browser_profile,
+                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine."
             )
 
             result = await agent.run()
@@ -122,17 +150,21 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Go to the Twitter profile of @{username} and extract the text from their latest {count} tweets.
+            CRITICAL: Copy EXACT text from {count} tweets by @{username}.
 
-            Steps:
-            1. Navigate to twitter.com/{username}
-            2. Find the tweet content from their latest {count} posts
-            3. Return the tweet text for each one
+            STRICT REQUIREMENTS:
+            - Go to /{username}
+            - Copy complete tweet text VERBATIM - no summaries
+            - Include emojis, links, hashtags, line breaks
+            - Extract {count} most recent tweets with their EXACT content
             """
 
             agent = Agent(
                 task=task,
-                llm=self.llm
+                llm=self.llm,
+                browser_session=self.browser_session,
+                browser_profile=self.fast_browser_profile,
+                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine."
             )
 
             result = await agent.run()
@@ -150,19 +182,15 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Reply to a tweet with this exact text:
-            "{text}"
-
-            Steps:
-            1. Go to this tweet URL: {tweet_url}
-            2. Click the reply button on the tweet
-            3. Enter the reply text in the compose box
-            4. Click the reply/post button to send the reply
+            FAST: Reply "{text}" to tweet at {tweet_url}. Go to URL, click reply, type, send.
             """
 
             agent = Agent(
                 task=task,
-                llm=self.llm
+                llm=self.llm,
+                browser_session=self.browser_session,
+                browser_profile=self.fast_browser_profile,
+                system_message="You are an extremely fast and efficient browser agent. Be concise, direct, and get to the goal quickly. Reply to tweets immediately."
             )
 
             result = await agent.run()
@@ -180,17 +208,22 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Search for tweets on Twitter using this query: "{query}"
+            CRITICAL: Search "{query}" and copy EXACT text from {count} results.
 
-            Steps:
-            1. Use Twitter's search function to search for: {query}
-            2. Extract the text and author information from the first {count} search results
-            3. Return the tweet content and usernames
+            STRICT REQUIREMENTS:
+            - Search for: {query}
+            - Copy complete tweet text VERBATIM - no summaries
+            - Include exact @usernames
+            - Include emojis, links, hashtags, line breaks
+            - Get {count} search results with EXACT content
             """
 
             agent = Agent(
                 task=task,
-                llm=self.llm
+                llm=self.llm,
+                browser_session=self.browser_session,
+                browser_profile=self.fast_browser_profile,
+                system_message="You are a precise text extraction agent. Your primary job is to copy text EXACTLY as it appears, character for character. Never summarize, paraphrase, or interpret content. Be a perfect copy machine."
             )
 
             result = await agent.run()
@@ -211,11 +244,12 @@ class TwitterBrowserBot:
         except Exception as e:
             logger.error(f"Error saving session: {e}")
 
-    def close_session(self):
+    async def close_session(self):
         """Close browser"""
         try:
-            if self.agent:
-                # Browser-use handles cleanup automatically
+            if self.browser_session:
+                await self.browser_session.kill()
+                self.browser_session = None
                 self.agent = None
                 self.logged_in = False
                 logger.info("Browser session closed")

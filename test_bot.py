@@ -124,12 +124,12 @@ async def main():
                 print("✓ Session saved!")
 
             elif choice == "8":
-                bot.close_session()
+                await bot.close_session()
                 print("✓ Session closed!")
 
             elif choice == "9":
                 print("Closing session and exiting...")
-                bot.close_session()
+                await bot.close_session()
                 print("Goodbye!")
                 sys.exit(0)
 
@@ -138,7 +138,7 @@ async def main():
 
         except KeyboardInterrupt:
             print("\n\nInterrupted by user. Closing session...")
-            bot.close_session()
+            await bot.close_session()
             sys.exit(0)
 
         except Exception as e:
