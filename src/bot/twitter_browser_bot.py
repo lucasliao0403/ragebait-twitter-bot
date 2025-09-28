@@ -40,8 +40,9 @@ class TwitterBrowserBot:
             wait_for_network_idle_page_load_time=0.1,  # Ultra-fast network idle
             wait_between_actions=0.05,  # Ultra-minimal action delays
             disable_security=False,  # Keep security for Twitter
-            headless=False,  
-            enable_default_extensions=False  # Disable extensions for speed
+            headless=False,
+            enable_default_extensions=False,  # Disable extensions for speed
+            user_data_dir=os.path.join(os.getcwd(), '.browser_profile')  # Persistent session storage
         )
         # Conservative profile for login operations
         self.safe_browser_profile = BrowserProfile(
@@ -50,8 +51,9 @@ class TwitterBrowserBot:
             wait_for_network_idle_page_load_time=0.8,  # Safer for login
             wait_between_actions=0.2,  # Slower for login safety
             disable_security=False,
-            headless=False,  
-            enable_default_extensions=False  # Disable extensions for speed
+            headless=False,
+            enable_default_extensions=False,  # Disable extensions for speed
+            user_data_dir=os.path.join(os.getcwd(), '.browser_profile')  # Persistent session storage
         )
 
     def _parse_tweets_from_result(self, result_text: str):
@@ -86,29 +88,27 @@ class TwitterBrowserBot:
                 raise ValueError("TWITTER_USERNAME and TWITTER_PASSWORD must be set in environment variables")
 
             task = f"""
-            Complete Twitter login using these exact steps:
+            Check login status and login if needed.
 
-            1. Use action 'click' on button with text "Sign in" or "Log in"
-            2. Use action 'type' to enter "{username}" in the username/email field
-            3. Use action 'click' on button with text "Next" (blue primary button only)
-            4. Use action 'type' to enter "{password}" in the password field
-            5. Use action 'click' on button with text "Log in" or "Sign in" (blue primary button only)
+            STEP 1: Navigate to twitter.com and check if already logged in → VALIDATE: If homepage/timeline visible, IMMEDIATELY STOP (already logged in)
 
-            ERROR RECOVERY:
-            - If button click fails, use keyboard 'Tab' + 'Enter' instead
-            - If field not found, use 'click' on input[type="email"] or input[type="password"]
-            - Ignore any "Forgot password" or "Reset password" links
+            If NOT logged in, continue with login:
+            STEP 2: Click "Sign in" button → VALIDATE: Login form appears
+            STEP 3: Type "{username}" → VALIDATE: Username entered
+            STEP 4: Click "Next" button → VALIDATE: Password form appears
+            STEP 5: Type "{password}" → VALIDATE: Password entered
+            STEP 6: Click "Log in" button → VALIDATE: Home timeline loads
 
-            SUCCESS: You will see Twitter home timeline with tweets
+            IMMEDIATELY STOP when homepage is visible.
             """
 
             self.agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_profile=self.safe_browser_profile,
-                system_message="Execute login actions precisely. Use specific action names: 'click', 'type', 'key'. Target blue primary buttons only. Skip secondary links.",
+                system_message="Check if logged in first. If already logged in, STOP immediately. If not, complete login then STOP.",
                 max_steps=6,
-                step_timeout=45,
+                step_timeout=30,
                 verbose=True
             )
 
@@ -128,18 +128,12 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Post tweet with exact actions:
+            Post tweet in exactly 2 steps:
 
-            1. Use action 'click' on button containing "Tweet", "Post", or "What's happening"
-            2. Use action 'type' to enter: {text}
-            3. Use action 'click' on blue "Post" or "Tweet" button
+            STEP 1: Click compose button → VALIDATE: Tweet box opens
+            STEP 2: Type "{text}" and click "Post" → VALIDATE: Tweet published
 
-            ERROR RECOVERY:
-            - If compose button not found, use 'key' with 'n' (Twitter shortcut)
-            - If text area not found, use 'click' on textarea or div[contenteditable]
-            - If post fails, use keyboard 'Ctrl+Enter'
-
-            SUCCESS: Tweet appears in timeline
+            STOP when tweet appears in timeline.
             """
 
             agent = Agent(
@@ -147,9 +141,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Execute precise tweet posting actions. Use action names: 'click', 'type', 'key'. Focus on compose workflow.",
-                max_steps=4,
-                step_timeout=45,
+                system_message="Post tweet in exactly 2 actions then STOP. Success = tweet appears in timeline.",
+                max_steps=2,
+                step_timeout=30,
                 verbose=True
             )
 
@@ -185,19 +179,15 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Extract {count} tweets using extract_structured_data action:
+            Extract exactly {count} tweets from the current page in 1 action.
 
-            1. Use action 'extract_structured_data' with query: "Extract tweet text and usernames"
-            2. Target elements: article, div[data-testid="tweet"], or similar tweet containers
-            3. Extract: username (starts with @) and tweet text content
+            Look at all visible tweets on the page and extract the first {count} different tweets you see.
 
-            OUTPUT FORMAT:
+            OUTPUT FORMAT (exactly {count} tweets):
             Author: @username
-            Text: exact tweet text
+            Text: tweet content
 
-            ERROR RECOVERY:
-            - If extraction fails, use 'scroll' down to load more tweets
-            - If no tweets visible, navigate to Twitter home with 'go_to_url'
+            STOP immediately after extracting {count} tweets.
             """
 
             agent = Agent(
@@ -205,8 +195,8 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Execute data extraction actions. Use 'extract_structured_data' for tweets. Focus on username and text content only.",
-                max_steps=2,
+                system_message=f"Extract exactly {count} tweets in 1 action then IMMEDIATELY STOP. Success = getting {count} different tweets.",
+                max_steps=1,
                 step_timeout=30,
                 verbose=False
             )
@@ -239,19 +229,16 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Get tweets from user @{username} using exact actions:
+            Get user tweets in exactly 2 steps:
 
-            1. Use action 'go_to_url' to navigate to "https://twitter.com/{username}"
-            2. Use action 'extract_structured_data' with query: "Extract {count} recent tweets with full text"
-            3. Target tweet containers: article or div[data-testid="tweet"]
+            STEP 1: Navigate to "https://twitter.com/{username}" → VALIDATE: User profile loads
+            STEP 2: Read {count} tweets from profile → VALIDATE: Tweet text extracted
 
             OUTPUT FORMAT:
             Author: @{username}
-            Text: complete tweet text with emojis, links, hashtags
+            Text: tweet content
 
-            ERROR RECOVERY:
-            - If user page not found, try alternative URL format
-            - If no tweets visible, use 'scroll' down to load content
+            STOP after extracting visible tweets.
             """
 
             agent = Agent(
@@ -259,8 +246,8 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Execute user profile actions. Use 'go_to_url', 'extract_structured_data'. Focus on tweet extraction workflow.",
-                max_steps=5,
+                system_message="Get user tweets in exactly 2 actions then STOP. Success = reading tweets from user profile.",
+                max_steps=2,
                 step_timeout=30
             )
 
@@ -291,19 +278,12 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Reply to tweet using exact actions:
+            Reply to tweet in exactly 2 steps:
 
-            1. Use action 'go_to_url' to navigate to: {tweet_url}
-            2. Use action 'click' on reply button (icon or text "Reply")
-            3. Use action 'type' to enter: {text}
-            4. Use action 'click' on blue "Reply" button to send
+            STEP 1: Navigate to: {tweet_url} → VALIDATE: Tweet page loads
+            STEP 2: Click reply, type "{text}", send → VALIDATE: Reply posted
 
-            ERROR RECOVERY:
-            - If reply button not found, use 'key' with 'r' (Twitter shortcut)
-            - If text area not found, use 'click' on textarea or div[contenteditable]
-            - If send fails, use keyboard 'Ctrl+Enter'
-
-            SUCCESS: Your reply appears under the original tweet
+            STOP when reply appears under original tweet.
             """
 
             agent = Agent(
@@ -311,9 +291,9 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Execute reply actions precisely. Use 'go_to_url', 'click', 'type' actions. Target reply workflow efficiently.",
-                max_steps=4,  # Few steps for replying
-                step_timeout=45  # Fast timeout
+                system_message="Reply to tweet in exactly 2 actions then STOP. Success = reply appears under original tweet.",
+                max_steps=2,
+                step_timeout=30
             )   
 
             result = await agent.run()
@@ -349,21 +329,16 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Search Twitter using exact actions:
+            Search Twitter in exactly 2 steps:
 
-            1. Use action 'click' on search box or use 'key' with '/' (Twitter shortcut)
-            2. Use action 'type' to enter search query: {query}
-            3. Use action 'key' with 'Enter' to execute search
-            4. Use action 'extract_structured_data' to get {count} tweet results
+            STEP 1: Search for "{query}" → VALIDATE: Search results load
+            STEP 2: Read {count} result tweets → VALIDATE: Tweet text extracted
 
             OUTPUT FORMAT:
             Author: @username
-            Text: complete tweet text with emojis, links, hashtags
+            Text: tweet content
 
-            ERROR RECOVERY:
-            - If search box not found, navigate to "https://twitter.com/search"
-            - If no results, try alternative search terms
-            - If extraction fails, use 'scroll' to load more results
+            STOP after extracting search results.
             """
 
             agent = Agent(
@@ -371,8 +346,8 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Execute search and extraction actions. Use 'click', 'type', 'key', 'extract_structured_data'. Focus on search workflow.",
-                max_steps=5,
+                system_message="Search Twitter in exactly 2 actions then STOP. Success = reading search result tweets.",
+                max_steps=2,
                 step_timeout=30
             )
 

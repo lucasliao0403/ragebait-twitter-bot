@@ -1,3 +1,4 @@
 .env
 /.browser_use_config
+/.browser_profile
 /__pycache__

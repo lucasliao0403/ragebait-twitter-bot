@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## IMPLEMENTATION INSTRUCTIONS
 
 - When implementing features, implement exactly the minimum and no more. No testing or examples unless otherwise specified.
+- When modifying prompts, add/remove minimal amount of text to achieve desired effect. Do not modify any other text.
 - If importing any new packages, make sure to update /requirements.txt
 - NEVER read .env files
 
