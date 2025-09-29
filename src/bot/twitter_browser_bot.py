@@ -131,9 +131,10 @@ class TwitterBrowserBot:
             Post tweet in exactly 2 steps:
 
             STEP 1: Click compose button → VALIDATE: Tweet box opens
-            STEP 2: Type "{text}" and click "Post" → VALIDATE: Tweet published
+            STEP 2: Type "{text}" → VALIDATE: {text} entered
+            STEP 3: Click "Post" button -> NO VALIDATION
 
-            STOP when tweet appears in timeline.
+            IMMEDIATELY STOP after step 2 no matter what.
             """
 
             agent = Agent(
@@ -141,8 +142,8 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Post tweet in exactly 2 actions then STOP. Success = tweet appears in timeline.",
-                max_steps=2,
+                system_message="Post tweet in exactly 3 actions then STOP.",
+                max_steps=3,
                 step_timeout=30,
                 verbose=True
             )
@@ -179,15 +180,13 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Extract exactly {count} tweets from the current page in 1 action.
-
-            Look at all visible tweets on the page and extract the first {count} different tweets you see.
+            Read and extract exactly {count} tweets from the current page.
 
             OUTPUT FORMAT (exactly {count} tweets):
             Author: @username
             Text: tweet content
 
-            STOP immediately after extracting {count} tweets.
+            Task complete after extraction. No further actions needed.
             """
 
             agent = Agent(
@@ -197,6 +196,8 @@ class TwitterBrowserBot:
                 browser_profile=self.fast_browser_profile,
                 system_message=f"Extract exactly {count} tweets in 1 action then IMMEDIATELY STOP. Success = getting {count} different tweets.",
                 max_steps=1,
+                max_actions_per_step=1,
+                flash_mode=True,
                 step_timeout=30,
                 verbose=False
             )
