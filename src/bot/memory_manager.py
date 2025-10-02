@@ -41,34 +41,8 @@ class MemoryManager:
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    def is_promotional_content(self, tweet_text: str, author: str, indicators: List[str]) -> bool:
-        """Detect if content is promotional/ad content"""
-        ad_markers = ["Promoted", "Ad", "Sponsored", "Learn more"]
-        promoted_indicators = ["Promoted by", "Sponsored content"]
-
-        # Check text for ad markers
-        for marker in ad_markers:
-            if marker in tweet_text or marker in indicators:
-                return True
-
-        # Check for promoted tweet indicators
-        for indicator in promoted_indicators:
-            if indicator in indicators:
-                return True
-
-        return False
-
     def log_interaction(self, interaction_data: Dict[str, Any]):
-        """Log an interaction (excluding ads)"""
-        if self.is_promotional_content(
-            interaction_data.get('text', ''),
-            interaction_data.get('author', ''),
-            interaction_data.get('indicators', [])
-        ):
-            # Log ad for completeness but don't process for learning
-            self._log_promotional_content(interaction_data)
-            return
-
+        """Log an interaction"""
         interactions = self._load_json(self.interactions_file) or []
 
         interaction_entry = {
@@ -84,24 +58,8 @@ class MemoryManager:
         interactions.append(interaction_entry)
         self._save_json(self.interactions_file, interactions)
 
-    def _log_promotional_content(self, ad_data: Dict[str, Any]):
-        """Log promotional content separately (for completeness, not learning)"""
-        ad_log_file = os.path.join(self.data_dir, "ads.json")
-        ads = self._load_json(ad_log_file) or []
-
-        ad_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "content": ad_data.get('text'),
-            "author": ad_data.get('author'),
-            "ad_type": "promoted",
-            "indicators": ad_data.get('indicators', [])
-        }
-
-        ads.append(ad_entry)
-        self._save_json(ad_log_file, ads)
-
     def update_friend_profile(self, username: str, interaction_type: str, success: bool, engagement_data: Dict[str, Any]):
-        """Update friend profile based on interaction (organic content only)"""
+        """Update friend profile based on interaction"""
         friends = self._load_json(self.friends_file) or {}
 
         if username not in friends:
@@ -202,7 +160,7 @@ class MemoryManager:
         return self._load_json(self.context_file) or {"active_conversations": [], "session_data": {}}
 
     def get_recent_interactions(self, count: int = 50) -> List[Dict[str, Any]]:
-        """Get recent interactions (organic content only)"""
+        """Get recent interactions"""
         interactions = self._load_json(self.interactions_file) or []
         return interactions[-count:] if interactions else []
 

@@ -25,5 +25,23 @@
     "success": true,
     "engagement_metrics": {},
     "tweet_id": null
+  },
+  {
+    "timestamp": "2025-09-29T14:00:12.373643",
+    "type": "tweet_reply",
+    "content": "reply",
+    "author": "self",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
+  },
+  {
+    "timestamp": "2025-09-30T22:44:33.255973",
+    "type": "tweet_post",
+    "content": "heyeey",
+    "author": "self",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
   }
 ]
