@@ -61,9 +61,7 @@ async def main():
 
                 print(f"Fetching {count} tweets from timeline...")
                 result = await bot.get_timeline(count)
-                print(f"\n--- Timeline Results ---")
-                print(result)
-                print("--- End Timeline ---")
+                print("✓ Timeline fetched successfully!")
 
 
             elif choice == "4":
@@ -81,9 +79,7 @@ async def main():
 
                 print(f"Fetching {count} tweets from @{username}...")
                 result = await bot.get_user_tweets(username, count)
-                print(f"\n--- @{username} Tweets ---")
-                print(result)
-                print("--- End User Tweets ---")
+                print(f"✓ Tweets from @{username} fetched successfully!")
 
 
             elif choice == "5":
@@ -119,9 +115,7 @@ async def main():
 
                 print(f"Searching for '{query}'...")
                 result = await bot.search_tweets(query, count)
-                print(f"\n--- Search Results for '{query}' ---")
-                print(result)
-                print("--- End Search Results ---")
+                print(f"✓ Search for '{query}' completed successfully!")
 
 
             elif choice == "7":

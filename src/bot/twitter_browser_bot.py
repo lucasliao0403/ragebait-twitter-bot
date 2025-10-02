@@ -1,8 +1,8 @@
 import os
 import asyncio
 import logging
-import math
 import json
+from json import JSONDecoder
 from browser_use import Agent, BrowserProfile
 from browser_use.llm import ChatGroq
 from dotenv import load_dotenv
@@ -58,19 +58,43 @@ class TwitterBrowserBot:
             user_data_dir=os.path.join(os.getcwd(), '.browser_profile')  # Persistent session storage
         )
 
-    def _parse_tweets_from_result(self, result_text: str):
-        """Parse tweets from agent result and filter ads"""
+    def _parse_tweets_from_result(self, result):
+        """Parse tweets from agent result - extract from final done action"""
         tweets = []
 
-        # Handle both direct text output and extract_structured_data file output
-        if hasattr(result_text, 'result') and hasattr(result_text.result, 'extracted_content'):
-            content = result_text.result.extracted_content
+        print(f"\n[DEBUG] Result type: {type(result)}")
+
+        # Get the final result text from AgentHistoryList
+        content = None
+
+        # Try to get final_result() method if it exists
+        if hasattr(result, 'final_result'):
+            try:
+                final = result.final_result()
+                print(f"[DEBUG] Got final_result: {str(final)[:200]}")
+                content = str(final)
+            except Exception as e:
+                print(f"[DEBUG] Error calling final_result(): {e}")
+
+        # Fallback: convert to string and extract JSON
+        if content is None:
+            content = str(result)
+            print(f"[DEBUG] Using str(result)")
+
+        # The result should contain a JSON array - find it
+        if '[' in content and ']' in content:
+            json_start = content.index('[')
+            # Find the matching closing bracket
+            json_end = content.rindex(']') + 1
+            content = content[json_start:json_end]
+            print(f"[DEBUG] Extracted JSON substring: {content[:200]}...")
         else:
-            content = str(result_text)
+            print(f"[DEBUG] WARNING: No JSON array found in result")
+            return tweets
 
         try:
-            # Try JSON parsing first
-            json_data = json.loads(content)
+            # Parse the JSON using raw_decode to ignore trailing text
+            json_data, _ = JSONDecoder().raw_decode(content)
             if isinstance(json_data, list):
                 for tweet_data in json_data:
                     if isinstance(tweet_data, dict):
@@ -82,10 +106,12 @@ class TwitterBrowserBot:
                         # Only add tweet if it has content
                         if tweet['author'] and tweet['text']:
                             tweets.append(tweet)
+            print(f"[DEBUG] JSON parsing successful: extracted {len(tweets)} tweets")
             return tweets
 
         except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
             logger.warning(f"JSON parsing failed: {e}, falling back to text parsing")
+            print(f"[DEBUG] JSON parsing failed: {e}")
             # Fallback to text parsing for backwards compatibility
             lines = content.split('\n')
             current_tweet = {}
@@ -102,6 +128,9 @@ class TwitterBrowserBot:
             if current_tweet:
                 tweets.append(current_tweet)
 
+        print(f"[DEBUG] Text parsing completed: extracted {len(tweets)} tweets")
+        if len(tweets) == 0:
+            print(f"[DEBUG] WARNING: No tweets extracted! Check parsing logic.")
         return tweets
 
     async def start_session(self):
@@ -205,36 +234,31 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Extract {count} tweets from the timeline. When done, return ONLY a raw JSON array with no additional text.
+            Collect {count} tweets and return as JSON array.
 
-            STEPS:
-            1. Use extract_structured_data with query: "Return a JSON array of tweets. Format: [{{'author': 'handle', 'text': 'content'}}]. No wrapper tags, no explanations."
-            2. If fewer than {count} tweets, scroll and repeat
-            3. When done, use the 'done' action with ONLY the raw JSON array - no prefix text, no explanations, just [{{'author':'x','text':'y'}}]
+            Step 1: Scroll down 2-3 times to load more tweets
+            Step 2: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content"}}]. Use the @handle (like @elonmusk), not the display name."
+            Step 3: Call done with ONLY the JSON array, no text before or after
+
+            Do NOT extract multiple times. Extract once after scrolling.
             """
-
-            # Calculate max steps needed (assuming ~3 tweets visible per scroll)
-            max_steps_needed = math.ceil(count / 3) + 1
 
             agent = Agent(
                 task=task,
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message=f"Extract tweets. When calling 'done', the text field must contain ONLY the raw JSON array starting with '[' - absolutely no prefix text like 'Extracted X tweets' or explanations. Just the array.",
-                max_steps=max_steps_needed,
-                max_actions_per_step=2,
+                system_message=f"Scroll a few times, then extract {count} tweets ONCE, then call done. Do not extract multiple times.",
+                max_steps=6,
+                max_actions_per_step=1,
                 step_timeout=30,
                 verbose=False
             )
 
             result = await agent.run()
 
-            print("RESULTS:")
-            print(result)
-
             # Parse tweets and log to memory
-            tweets = self._parse_tweets_from_result(str(result))
+            tweets = self._parse_tweets_from_result(result)
 
             for tweet in tweets:
                 interaction_data = {
@@ -283,7 +307,7 @@ class TwitterBrowserBot:
             result = await agent.run()
 
             # Parse tweets and log to memory
-            tweets = self._parse_tweets_from_result(str(result))
+            tweets = self._parse_tweets_from_result(result)
             for tweet in tweets:
                 interaction_data = {
                     'type': 'user_tweets_read',
@@ -383,7 +407,7 @@ class TwitterBrowserBot:
             result = await agent.run()
 
             # Parse tweets and log to memory
-            tweets = self._parse_tweets_from_result(str(result))
+            tweets = self._parse_tweets_from_result(result)
             for tweet in tweets:
                 interaction_data = {
                     'type': 'search_result',

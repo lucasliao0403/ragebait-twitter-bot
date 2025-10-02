@@ -43,5 +43,23 @@
     "success": true,
     "engagement_metrics": {},
     "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T14:15:35.095851",
+    "type": "timeline_read",
+    "content": "hey @nikitabier what do i need to do to get the @gabriel handle",
+    "author": "gabriel",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T14:20:27.014582",
+    "type": "timeline_read",
+    "content": "At Cursor, every GTM and non-engineering hire goes through building an onboarding project. They use an internal guide to go from getting started to a deployed project. Based on the interest in this guide, recorded and sharing a public version! you can find the link below ↑",
+    "author": "kashyechuri",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
   }
 ]
