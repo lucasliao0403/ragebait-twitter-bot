@@ -101,7 +101,8 @@ class TwitterBrowserBot:
                         # Ensure all required fields exist with defaults
                         tweet = {
                             'author': str(tweet_data.get('author', '')).replace('@', ''),
-                            'text': str(tweet_data.get('text', ''))
+                            'text': str(tweet_data.get('text', '')),
+                            'url': str(tweet_data.get('url', ''))
                         }
                         # Only add tweet if it has content
                         if tweet['author'] and tweet['text']:
@@ -237,7 +238,7 @@ class TwitterBrowserBot:
             Collect {count} tweets and return as JSON array.
 
             Step 1: Scroll down 2-3 times to load more tweets
-            Step 2: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content"}}]. Use the @handle (like @elonmusk), not the display name."
+            Step 2: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content", "url": "tweet_link"}}]. Use the @handle (like @elonmusk), not the display name. Include the full tweet URL."
             Step 3: Call done with ONLY the JSON array, no text before or after
 
             Do NOT extract multiple times. Extract once after scrolling.
@@ -265,6 +266,7 @@ class TwitterBrowserBot:
                     'type': 'timeline_read',
                     'text': tweet.get('text', ''),
                     'author': tweet.get('author', ''),
+                    'url': tweet.get('url', ''),
                     'success': True
                 }
                 self.memory_manager.log_interaction(interaction_data)

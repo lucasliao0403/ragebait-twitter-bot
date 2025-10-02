@@ -50,6 +50,7 @@ class MemoryManager:
             "type": interaction_data.get('type'),
             "content": interaction_data.get('text'),
             "author": interaction_data.get('author'),
+            "url": interaction_data.get('url'),
             "success": interaction_data.get('success', False),
             "engagement_metrics": interaction_data.get('engagement_metrics', {}),
             "tweet_id": interaction_data.get('tweet_id')

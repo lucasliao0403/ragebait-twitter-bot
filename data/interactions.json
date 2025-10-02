@@ -61,5 +61,25 @@
     "success": true,
     "engagement_metrics": {},
     "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T14:25:37.407306",
+    "type": "timeline_read",
+    "content": "tech bro1.0- nerds in a garage who want to change the world, burning man, psychedelics, Silicon Valley, super technical tech bro2.0-996, blue chip pedigree from FAANG or university, gym bro, obsessed with tracking everything, AI vibecoding marketing slopmaster tech bro3.0-",
+    "author": "miranda_nover",
+    "url": "https://x.com/miranda_nover/status/1973133165163364825",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T14:25:37.408285",
+    "type": "timeline_read",
+    "content": "introducing: builder pal. f*ck github heatmaps.",
+    "author": "0xTommyThomas",
+    "url": "https://x.com/0xTommyThomas/status/1973372576094159080",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
   }
 ]
