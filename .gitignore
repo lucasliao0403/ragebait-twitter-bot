@@ -3,4 +3,4 @@
 /.browser_profile
 /__pycache__
 /venv
-/data
+# /data

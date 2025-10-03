@@ -44,6 +44,9 @@ class MemoryManager:
     def log_interaction(self, interaction_data: Dict[str, Any]):
         """Log an interaction to SQLite database"""
         try:
+            print(f"\n[MemoryManager] Logging interaction: type={interaction_data.get('type')}, author={interaction_data.get('author')}")
+            print(f"[MemoryManager] Full interaction_data: {interaction_data}")
+
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
@@ -56,6 +59,11 @@ class MemoryManager:
 
             metadata_json = json.dumps(metadata) if metadata else None
 
+            # Get URL from either 'url' or 'tweet_url' field
+            url = interaction_data.get('url') or interaction_data.get('tweet_url')
+
+            print(f"[MemoryManager] Saving to DB: url={url}, content={interaction_data.get('text')[:50] if interaction_data.get('text') else None}...")
+
             # Insert interaction with parameterized query to prevent SQL injection
             cursor.execute('''
                 INSERT INTO interactions (timestamp, type, content, author, url, metadata)
@@ -65,15 +73,19 @@ class MemoryManager:
                 interaction_data.get('type'),
                 interaction_data.get('text'),  # 'text' field maps to 'content' column
                 interaction_data.get('author'),
-                interaction_data.get('url'),
+                url,
                 metadata_json
             ))
 
+            row_id = cursor.lastrowid
             conn.commit()
             conn.close()
 
+            print(f"[MemoryManager] ✓ Successfully saved interaction to database (id={row_id})\n")
+
         except Exception as e:
-            logger.error(f"Error logging interaction to database: {e}")
+            print(f"[MemoryManager] ❌ Error logging interaction to database: {e}")
+            print(f"[MemoryManager] Interaction data: {interaction_data}")
             # Don't raise - we don't want to break the bot if logging fails
 
     def get_recent_interactions(self, count: int = 50) -> List[Dict[str, Any]]:
