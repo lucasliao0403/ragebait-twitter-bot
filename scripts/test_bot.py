@@ -101,7 +101,7 @@ async def main():
                 if reply_choice == "1":
                     print("Generating AI reply...")
                     reply_text = await bot.generate_reply(tweet_url)
-                    print(f"\n💡 Generated reply: {reply_text}")
+                    print(f"\nGenerated reply: {reply_text}")
 
                     # Ask for confirmation
                     confirm = input("\nPost this reply? (y/n): ").strip().lower()
