@@ -384,16 +384,14 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Search Twitter in exactly 2 steps:
+            Search for "{query}" and collect {count} tweets as JSON array.
 
-            STEP 1: Search for "{query}" → VALIDATE: Search results load
-            STEP 2: Read {count} result tweets → VALIDATE: Tweet text extracted
+            Step 1: Search for "{query}" on Twitter
+            Step 2: Scroll down 1-2 times to load more results
+            Step 3: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content", "url": "tweet_link"}}]. Use the @handle (like @elonmusk), not the display name. Include the full tweet URL."
+            Step 4: Call done with ONLY the JSON array, no text before or after
 
-            OUTPUT FORMAT:
-            Author: @username
-            Text: tweet content
-
-            STOP after extracting search results.
+            Do NOT extract multiple times. Extract once after scrolling.
             """
 
             agent = Agent(
@@ -401,9 +399,11 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Search Twitter in exactly 2 actions then STOP. Success = reading search result tweets.",
-                max_steps=2,
-                step_timeout=30
+                system_message=f"Search for '{query}', scroll, then extract {count} tweets ONCE, then call done. Do not extract multiple times.",
+                max_steps=6,
+                max_actions_per_step=1,
+                step_timeout=30,
+                verbose=False
             )
 
             result = await agent.run()
@@ -415,6 +415,7 @@ class TwitterBrowserBot:
                     'type': 'search_result',
                     'text': tweet.get('text', ''),
                     'author': tweet.get('author', ''),
+                    'url': tweet.get('url', ''),
                     'success': True,
                     'search_query': query
                 }
