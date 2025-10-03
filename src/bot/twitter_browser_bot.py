@@ -354,6 +354,17 @@ class TwitterBrowserBot:
 
             result = await agent.run()
 
+            # Extract username from tweet URL (e.g., https://x.com/michaelyhan_/status/1974115166238421319)
+            author = 'unknown'
+            try:
+                url_parts = tweet_url.rstrip('/').split('/')
+                if 'status' in url_parts:
+                    status_index = url_parts.index('status')
+                    if status_index > 0:
+                        author = url_parts[status_index - 1]
+            except Exception as e:
+                logger.warning(f"Could not parse username from URL: {tweet_url}")
+
             # Log reply to memory
             interaction_data = {
                 'type': 'tweet_reply',
@@ -364,10 +375,9 @@ class TwitterBrowserBot:
             self.memory_manager.log_interaction(interaction_data)
 
             # Log conversation (thread_id is the tweet URL)
-            # Note: We don't have the original tweet content here, so we log a minimal entry
             self.memory_manager.log_conversation(
                 thread_id=tweet_url,
-                original_tweet={'url': tweet_url},  # Minimal - we don't fetch original content
+                original_tweet={'url': tweet_url, 'author': author},
                 reply_tweet={'text': text}
             )
 
