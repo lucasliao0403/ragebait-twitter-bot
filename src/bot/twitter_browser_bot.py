@@ -359,10 +359,17 @@ class TwitterBrowserBot:
                 'type': 'tweet_reply',
                 'text': text,
                 'author': 'self',
-                'success': True,
                 'tweet_url': tweet_url
             }
             self.memory_manager.log_interaction(interaction_data)
+
+            # Log conversation (thread_id is the tweet URL)
+            # Note: We don't have the original tweet content here, so we log a minimal entry
+            self.memory_manager.log_conversation(
+                thread_id=tweet_url,
+                original_tweet={'url': tweet_url},  # Minimal - we don't fetch original content
+                reply_tweet={'text': text}
+            )
 
             # Update strategy effectiveness for replies
             self.memory_manager.update_strategy(
