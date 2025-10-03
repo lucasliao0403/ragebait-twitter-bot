@@ -144,6 +144,68 @@ maintain_relationship_score(friend_id, engagement_trend)
 - Content type effectiveness tracking (jokes vs support vs technical)
 - Relationship maintenance alerts (who to check in with)
 
+### Stage 5: Intelligent Tweet Selection (Future)
+**Goal:** Auto-filter timeline to only reply to high-engagement-potential tweets
+
+**Problem:** Not all tweets are worth replying to. The bot should focus on controversial, opinion-based, or shocking tweets that will generate maximum engagement when replied to.
+
+**Selection Criteria:**
+- **Reply-Worthy Tweets:**
+  - Hot takes or controversial opinions
+  - Bold claims or predictions
+  - Polarizing statements about tech/frameworks
+  - Questions that invite debate
+  - Complaints or frustrations (easy targets for contrarian takes)
+  - Hype or anti-hype about new tech
+  - Framework/language wars
+  - Strong emotional language or exaggeration
+
+- **Skip These (Boring):**
+  - Simple announcements ("Just shipped X")
+  - Tutorial/educational content without opinions
+  - Job postings
+  - Pure factual statements
+  - Retweets without commentary
+  - Thread continuations (1/n, 2/n, etc.)
+  - "Thank you" posts
+  - Links without hot takes
+
+**Implementation Approach:**
+```python
+async def filter_timeline_for_replies(self, count=50):
+    """Scroll timeline and identify reply-worthy tweets"""
+
+    # 1. Fetch timeline tweets (existing get_timeline method)
+    timeline = await self.get_timeline(count)
+
+    # 2. For each tweet, use Claude to classify as reply-worthy or not
+    for tweet in timeline:
+        classification = await self.classify_tweet(tweet)
+        if classification['worth_replying_to']:
+            # Add to reply queue with priority score
+            await self.queue_reply(tweet, priority=classification['engagement_score'])
+
+    # 3. Reply to top N tweets from queue
+    return reply_queue.sorted_by_priority()[:5]
+```
+
+**Classification Function:**
+- Use Claude with lightweight prompt to score tweets 0-10 for engagement potential
+- Consider: controversy level, opinion strength, debate potential, emotional tone
+- Fast classification (small token usage, temperature=0 for consistency)
+- Store classifications in memory to improve filtering over time
+
+**Integration with Memory:**
+- Track which types of tweets historically generated most engagement when replied to
+- Learn which authors consistently post reply-worthy content
+- Identify topics that perform well for the bot's personality
+
+**Benefits:**
+- Focus energy on high-impact replies
+- Avoid wasting API calls on boring tweets
+- Increase overall engagement rate
+- Build reputation for spicy, well-targeted takes
+
 ## Browser Automation Details
 
 ### Session Lifecycle

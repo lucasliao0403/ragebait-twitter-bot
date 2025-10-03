@@ -404,7 +404,7 @@ class TwitterBrowserBot:
             db_conn.close()
 
             # Read system prompt
-            system_prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
+            system_prompt_path = os.path.join(os.path.dirname(__file__), 'reply_prompt.txt')
             with open(system_prompt_path, 'r') as f:
                 system_prompt = f.read().strip()
 
@@ -462,14 +462,15 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Reply to tweet in exactly 2 steps:
+            Reply to the SPECIFIC tweet at {tweet_url} in exactly 4 steps:
 
-            STEP 1: Navigate to: {tweet_url} → VALIDATE: Tweet page loads
-            STEP 2: Click "Post Your Reply" → VALIDATE: Reply box opens
-            STEP 3: Type "{text}" → VALIDATE: {text} entered
-            STEP 4: Click "Post" button → no validation.
+            STEP 1: Navigate to {tweet_url} → VALIDATE: You are on the tweet page (URL contains /status/)
+            STEP 2: Click the "Reply" button on THIS tweet (do NOT click author's name/profile) → VALIDATE: Reply text box appears
+            STEP 3: Type "{text}" in the reply box → VALIDATE: Text is entered
+            STEP 4: Click "Post" or "Reply" button to submit → NO VALIDATION
 
-            IMMEDIATELY STOP after step 4 no matter what.
+            CRITICAL: Stay on the tweet page at {tweet_url}. Do NOT navigate to the author's profile page.
+            IMMEDIATELY STOP after step 4.
             """
 
             agent = Agent(
@@ -477,9 +478,10 @@ class TwitterBrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message="Reply to tweet in exactly 2 actions then STOP. Success = reply appears under original tweet.",
-                max_steps=2,
-                step_timeout=30
+                system_message=f"Navigate to {tweet_url}, click Reply button on THAT tweet, type text, click Post, then STOP. Do not navigate to author's profile.",
+                max_steps=4,
+                step_timeout=30,
+                verbose=True
             )   
 
             result = await agent.run()
