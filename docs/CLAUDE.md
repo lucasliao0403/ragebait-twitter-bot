@@ -32,11 +32,12 @@ This is a Dynamic Twitter Bot for Tech Trend Engagement that uses browser automa
 
 **Environment Setup:**
 ```bash
-pip install browser-use anthropic python-dotenv
+pip install browser-use groq anthropic python-dotenv
 ```
 
 **Environment Variables (.env):**
 ```
+GROQ_API_KEY=your_groq_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 TWITTER_USERNAME=your_twitter_username
 TWITTER_PASSWORD=your_twitter_password
@@ -44,6 +45,8 @@ TWITTER_PASSWORD=your_twitter_password
 
 **Core Files:**
 - `twitter_browser_bot.py` - Main bot class with session management
+- `memory_manager.py` - SQLite-based memory system
+- `system_prompt.txt` - Bot personality and behavior prompt for AI reply generation
 - `test_bot.py` - Simple CLI for manual testing
 
 **Functionality:**
@@ -51,6 +54,7 @@ TWITTER_PASSWORD=your_twitter_password
 - `post_tweet(text)` - Post a tweet
 - `get_timeline(count=10)` - Read home timeline
 - `get_user_tweets(username, count=10)` - Get specific user's tweets
+- `generate_reply(tweet_url)` - Generate AI reply using Claude 4.5 Sonnet (NEW - Core Feature)
 - `reply_to_tweet(tweet_url, text)` - Reply to tweets
 - `search_tweets(query, count=10)` - Search functionality
 - `save_session()` - Save browser state manually
@@ -61,6 +65,15 @@ TWITTER_PASSWORD=your_twitter_password
 - Manual session save/load to avoid repeated logins
 - 2FA support with manual input pause
 - Simple error handling (log and exit)
+
+**AI Reply Generation (Core Feature):**
+- `generate_reply(tweet_url)` - Generates contextual replies using Claude 4.5 Sonnet
+- System prompt in `/src/bot/system_prompt.txt` defines bot personality
+- Memory-aware: Learns from previous tweets by the same author to match their style
+- Context-aware: Analyzes the original tweet content before generating reply
+- Engagement-optimized: Designed to create ragebait/controversial takes for maximum engagement
+- CLI supports both AI-generated and manual replies with preview/confirmation
+- Uses Groq (Llama 4 Scout) for browser automation, Claude 4.5 Sonnet for content generation
 
 ### Stage 2: Basic Memory System
 **Goal:** JSON-based memory to track interactions and patterns

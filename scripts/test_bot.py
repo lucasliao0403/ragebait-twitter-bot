@@ -92,9 +92,30 @@ async def main():
                     print("❌ Tweet URL cannot be empty.")
                     continue
 
-                reply_text = input("Enter reply text: ").strip()
-                if not reply_text:
-                    print("❌ Reply text cannot be empty.")
+                # Ask if user wants AI-generated or manual reply
+                print("\nReply options:")
+                print("1. AI-generated reply (using Claude)")
+                print("2. Manual reply")
+                reply_choice = input("Choose option (1-2): ").strip()
+
+                if reply_choice == "1":
+                    print("Generating AI reply...")
+                    reply_text = await bot.generate_reply(tweet_url)
+                    print(f"\n💡 Generated reply: {reply_text}")
+
+                    # Ask for confirmation
+                    confirm = input("\nPost this reply? (y/n): ").strip().lower()
+                    if confirm != 'y':
+                        print("❌ Reply cancelled.")
+                        continue
+
+                elif reply_choice == "2":
+                    reply_text = input("Enter reply text: ").strip()
+                    if not reply_text:
+                        print("❌ Reply text cannot be empty.")
+                        continue
+                else:
+                    print("❌ Invalid choice.")
                     continue
 
                 await bot.reply_to_tweet(tweet_url, reply_text)

@@ -7,6 +7,7 @@ from browser_use import Agent, BrowserProfile
 from browser_use.llm import ChatGroq
 from dotenv import load_dotenv
 from .memory_manager import MemoryManager
+from anthropic import Anthropic
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env'))
@@ -35,6 +36,12 @@ class TwitterBrowserBot:
         except Exception as e:
             logger.error(f"Failed to initialize ChatGroq: {e}")
             raise
+
+        # Initialize Anthropic client for reply generation
+        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+        if not anthropic_api_key:
+            logger.warning("ANTHROPIC_API_KEY not found - AI reply generation will not work")
+        self.anthropic = Anthropic(api_key=anthropic_api_key)
         # Ultra-fast browser profile for regular operations
         self.fast_browser_profile = BrowserProfile(
             keep_alive=True,
@@ -323,6 +330,129 @@ class TwitterBrowserBot:
 
         except Exception as e:
             logger.error(f"Error getting user tweets: {e}")
+            raise
+
+    async def generate_reply(self, tweet_url):
+        """Generate an AI reply to a tweet using Claude"""
+        if not self.logged_in:
+            raise Exception("Not logged in. Call start_session() first.")
+
+        try:
+            # TODO: Remove this browser fetch later - we should get the tweet from the DB
+            # Fetch the original tweet content and author
+            task = f"""
+            Extract the original tweet information from {tweet_url}.
+
+            Step 1: Navigate to {tweet_url}
+            Step 2: Use extract_structured_data ONCE with query: "Return JSON object with the tweet info: {{"author": "@handle", "text": "tweet content"}}. CRITICAL: 'author' MUST be the Twitter handle starting with @ (NOT the display name). Use the gray @handle."
+            Step 3: Call done with ONLY the JSON object
+            """
+
+            agent = Agent(
+                task=task,
+                llm=self.llm,
+                browser_session=self.browser_session,
+                browser_profile=self.fast_browser_profile,
+                system_message="Navigate to tweet, extract info ONCE, then call done.",
+                max_steps=4,
+                step_timeout=30,
+                verbose=False
+            )
+
+            result = await agent.run()
+
+            # Parse the tweet info
+            content = str(result)
+            if hasattr(result, 'final_result'):
+                try:
+                    content = str(result.final_result())
+                except Exception:
+                    pass
+
+            # Extract JSON
+            original_tweet = {}
+            if '{' in content and '}' in content:
+                json_start = content.index('{')
+                json_end = content.rindex('}') + 1
+                json_str = content[json_start:json_end]
+                try:
+                    original_tweet = json.loads(json_str)
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse tweet JSON, using defaults")
+                    original_tweet = {"author": "unknown", "text": ""}
+
+            original_author = original_tweet.get('author', '').replace('@', '')
+            original_text = original_tweet.get('text', '')
+
+            logger.info(f"Generating reply to @{original_author}: {original_text[:50]}...")
+
+            # Get previous tweets by this author from memory
+            conn = self.memory_manager.db_path
+            import sqlite3
+            db_conn = sqlite3.connect(conn)
+            db_conn.row_factory = sqlite3.Row
+            cursor = db_conn.cursor()
+
+            cursor.execute('''
+                SELECT content FROM interactions
+                WHERE author = ? AND type IN ('timeline_read', 'search_result', 'user_tweets_read')
+                ORDER BY timestamp DESC
+                LIMIT 10
+            ''', (original_author,))
+
+            previous_tweets = [dict(row)['content'] for row in cursor.fetchall()]
+            db_conn.close()
+
+            # Read system prompt
+            system_prompt_path = os.path.join(os.path.dirname(__file__), 'system_prompt.txt')
+            with open(system_prompt_path, 'r') as f:
+                system_prompt = f.read().strip()
+
+            # Build context for Claude
+            context_parts = [
+                f"You are replying to this tweet from @{original_author}:",
+                f"\"{original_text}\"",
+                f"\nTweet URL: {tweet_url}",
+            ]
+
+            if previous_tweets:
+                context_parts.append(f"\nPrevious tweets from @{original_author} (for style reference):")
+                for i, tweet in enumerate(previous_tweets[:5], 1):
+                    context_parts.append(f"{i}. {tweet}")
+
+            context_parts.append("\nGenerate a reply tweet (max 280 characters) that:")
+            context_parts.append("- Engages with the original tweet's context")
+            context_parts.append("- Creates maximum engagement (controversy, hot takes, ragebait)")
+            context_parts.append("- Matches tech bro energy")
+            context_parts.append("- Is designed to get replies/quote tweets")
+            context_parts.append("\nRespond with ONLY the tweet text, nothing else.")
+
+            user_prompt = "\n".join(context_parts)
+
+            # Call Claude
+            response = self.anthropic.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=150,
+                temperature=1.0,
+                system=system_prompt,
+                messages=[{
+                    "role": "user",
+                    "content": user_prompt
+                }]
+            )
+
+            generated_reply = response.content[0].text.strip()
+
+            # Remove quotes if Claude wrapped the response
+            if generated_reply.startswith('"') and generated_reply.endswith('"'):
+                generated_reply = generated_reply[1:-1]
+
+            logger.info(f"Generated reply: {generated_reply}")
+
+            return generated_reply
+
+        except Exception as e:
+            logger.error(f"Error generating reply: {e}")
             raise
 
     async def reply_to_tweet(self, tweet_url, text):
