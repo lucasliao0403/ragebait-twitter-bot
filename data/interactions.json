@@ -131,5 +131,35 @@
     "success": true,
     "engagement_metrics": {},
     "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T20:28:27.874699",
+    "type": "search_result",
+    "content": "our intern hasn't shipped anything in60 days and has now dropped out of college to work for us what do i do now",
+    "author": "janaksunil",
+    "url": "https://x.com/janaksunil/status/1973867189641105711",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T20:28:27.875479",
+    "type": "search_result",
+    "content": "Want to generate cinematic drone shots of real-world locations in seconds? Here’s how to use Google Maps and LTX Studio to turn any spot on Earth into an establishing shot. No drone required ",
+    "author": "LTXStudio",
+    "url": "https://x.com/LTXStudio/status/1950194239834636617",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
+  },
+  {
+    "timestamp": "2025-10-02T20:28:27.875810",
+    "type": "search_result",
+    "content": "there are4 different levels of wealth: > rich > NYC rich > SF / Silicon Valley rich > chinese rich",
+    "author": "chinesegon",
+    "url": "https://x.com/chinesegon/status/1973864332628013322",
+    "success": true,
+    "engagement_metrics": {},
+    "tweet_id": null
   }
 ]

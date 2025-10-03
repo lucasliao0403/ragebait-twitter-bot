@@ -238,7 +238,7 @@ class TwitterBrowserBot:
             Collect {count} tweets and return as JSON array.
 
             Step 1: Scroll down 2-3 times to load more tweets
-            Step 2: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content", "url": "tweet_link"}}]. Use the @handle (like @elonmusk), not the display name. Include the full tweet URL."
+            Step 2: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content", "url": "tweet_link"}}]. CRITICAL: 'author' MUST be the Twitter handle starting with @ (examples: @elonmusk, @sama, @karpathy), NOT the display name. Display names are what's shown in bold (like 'Elon Musk' or 'Sam Altman') - DO NOT use those. Use the gray @handle that appears after the display name. Include the full tweet URL."
             Step 3: Call done with ONLY the JSON array, no text before or after
 
             Do NOT extract multiple times. Extract once after scrolling.
@@ -388,7 +388,7 @@ class TwitterBrowserBot:
 
             Step 1: Search for "{query}" on Twitter
             Step 2: Scroll down 1-2 times to load more results
-            Step 3: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content", "url": "tweet_link"}}]. Use the @handle (like @elonmusk), not the display name. Include the full tweet URL."
+            Step 3: Use extract_structured_data ONCE with query: "Return JSON array of {count} tweets: [{{"author": "@handle", "text": "content", "url": "tweet_link"}}]. CRITICAL: 'author' MUST be the Twitter handle starting with @ (examples: @elonmusk, @sama, @karpathy), NOT the display name. Display names are what's shown in bold (like 'Elon Musk' or 'Sam Altman') - DO NOT use those. Use the gray @handle that appears after the display name. Include the full tweet URL."
             Step 4: Call done with ONLY the JSON array, no text before or after
 
             Do NOT extract multiple times. Extract once after scrolling.
