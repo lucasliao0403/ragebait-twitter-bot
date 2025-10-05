@@ -1,0 +1,8 @@
+- implement RAG
+    - find ~100 high quality tweet examples
+- implement fully autonomous workflow for reply generation
+- improve consistency of browser use functions:
+    - timeline reading is wasteful for >5 tweets
+    - post tweet doesn't always stop
+    - login doesn't always work
+- check out cerebras
