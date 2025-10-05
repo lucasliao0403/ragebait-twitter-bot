@@ -153,7 +153,7 @@ class TwitterBrowserBot:
             task = f"""
             Check login status and login if needed.
 
-            STEP 1: Navigate to twitter.com and check if already logged in → VALIDATE: If homepage/timeline visible, IMMEDIATELY STOP (already logged in)
+            STEP 1: Navigate to twitter.com and check if already logged in → VALIDATE: If homepage/timeline OR ANY TWEETS visible, IMMEDIATELY STOP (already logged in)
 
             If NOT logged in, continue with login:
             STEP 2: Click "Sign in" button → VALIDATE: Login form appears
@@ -191,13 +191,13 @@ class TwitterBrowserBot:
 
         try:
             task = f"""
-            Post tweet in exactly 2 steps:
+            Post tweet in exactly 3 steps:
 
             STEP 1: Click compose button → VALIDATE: Tweet box opens
             STEP 2: Type "{text}" → VALIDATE: {text} entered
             STEP 3: Click "Post" button -> NO VALIDATION
 
-            IMMEDIATELY STOP after step 2 no matter what.
+            IMMEDIATELY STOP after step 3 no matter what.
             """
 
             agent = Agent(
@@ -369,9 +369,26 @@ class TwitterBrowserBot:
                 except Exception:
                     pass
 
-            # Extract JSON
+            # Extract JSON (handle both array and object)
             original_tweet = {}
-            if '{' in content and '}' in content:
+
+            # First check for array
+            if '[' in content and ']' in content:
+                json_start = content.index('[')
+                json_end = content.rindex(']') + 1
+                json_str = content[json_start:json_end]
+                try:
+                    parsed = json.loads(json_str)
+                    # If array, take first element (the original tweet)
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        original_tweet = parsed[0]
+                    else:
+                        original_tweet = {"author": "unknown", "text": ""}
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse tweet JSON array, using defaults")
+                    original_tweet = {"author": "unknown", "text": ""}
+            # Fallback to object extraction
+            elif '{' in content and '}' in content:
                 json_start = content.index('{')
                 json_end = content.rindex('}') + 1
                 json_str = content[json_start:json_end]
@@ -465,9 +482,9 @@ class TwitterBrowserBot:
             Reply to the SPECIFIC tweet at {tweet_url} in exactly 4 steps:
 
             STEP 1: Navigate to {tweet_url} → VALIDATE: You are on the tweet page (URL contains /status/)
-            STEP 2: Click the "Reply" button on THIS tweet (do NOT click author's name/profile) → VALIDATE: Reply text box appears
+            STEP 2: Click Reply on THIS tweet. → VALIDATE: You are on the reply popup
             STEP 3: Type "{text}" in the reply box → VALIDATE: Text is entered
-            STEP 4: Click "Post" or "Reply" button to submit → NO VALIDATION
+            STEP 4: Click "Post" or "Reply" button to submit
 
             CRITICAL: Stay on the tweet page at {tweet_url}. Do NOT navigate to the author's profile page.
             IMMEDIATELY STOP after step 4.

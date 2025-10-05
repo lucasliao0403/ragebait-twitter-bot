@@ -153,7 +153,8 @@ maintain_relationship_score(friend_id, engagement_trend)
 - **Reply-Worthy Tweets:**
   - Hot takes or controversial opinions
   - Bold claims or predictions
-  - Polarizing statements about tech/frameworks
+  - Product announcements
+  - Polarizing statements about tech
   - Questions that invite debate
   - Complaints or frustrations (easy targets for contrarian takes)
   - Hype or anti-hype about new tech
