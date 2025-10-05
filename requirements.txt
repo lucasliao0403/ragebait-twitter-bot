@@ -1,6 +1,6 @@
 browser-use
-groq
 python-dotenv
 anthropic
 chromadb
+openai
 selenium

@@ -120,6 +120,9 @@ pip install sqlite3 (built-in with Python)
 - Identify successful content patterns and timing
 - Maintain conversation context and relationship health
 
+
+**FUTURE FEATURE:** host chromadb somewhere so it doesn't have to initialize every time.
+
 ### Stage 4: Simple Learning Loop
 **Goal:** Basic feedback-driven improvement without over-engineering
 
@@ -201,12 +204,6 @@ async def filter_timeline_for_replies(self, count=50):
 - Learn which authors consistently post reply-worthy content
 - Identify topics that perform well for the bot's personality
 
-**Benefits:**
-- Focus energy on high-impact replies
-- Avoid wasting API calls on boring tweets
-- Increase overall engagement rate
-- Build reputation for spicy, well-targeted takes
-
 ## Browser Automation Details
 
 ### Session Lifecycle
@@ -227,13 +224,8 @@ start_session() → login_to_twitter() → [perform_operations()] → save_sessi
 
 ## Content Guidelines
 
-### Allowed Content
-- Framework debates and coding jokes
-- Professional tech banter and discussions
-- Developer culture references
-
 ### Prohibited Content
-- Politics, discrimination, hate speech, violence, sexual content
+- Politics, hate speech, violence, sexual content
 
 ## Testing Workflow
 
@@ -241,10 +233,3 @@ start_session() → login_to_twitter() → [perform_operations()] → save_sessi
 2. **Stage 2:** Verify memory storage and retrieval
 3. **Stage 3:** Test memory-driven decision making
 4. **Stage 4:** Monitor learning and adaptation
-
-## Safety Considerations
-
-- Start with test account or close friends
-- Monitor bot behavior closely in early stages
-- Implement kill switches for runaway behavior
-- Regular memory audits to prevent drift

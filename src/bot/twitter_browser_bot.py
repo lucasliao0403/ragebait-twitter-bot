@@ -7,6 +7,7 @@ from browser_use import Agent, BrowserProfile
 from browser_use.llm import ChatGroq
 from dotenv import load_dotenv
 from .memory_manager import MemoryManager
+from .style_rag import initialize_default_rag
 from anthropic import Anthropic
 
 # Load environment variables
@@ -25,6 +26,10 @@ class TwitterBrowserBot:
         self.browser_session = None
         self.logged_in = False
         self.memory_manager = MemoryManager()
+
+        # Initialize RAG system for style-based reply generation
+        rag_db_path = os.path.join(os.getcwd(), '.rag_data')
+        self.style_rag = initialize_default_rag(db_path=rag_db_path)
 
         api_key = os.getenv('GROQ_API_KEY')
         try:
@@ -436,6 +441,11 @@ class TwitterBrowserBot:
                 context_parts.append(f"\nPrevious tweets from @{original_author} (for style reference):")
                 for i, tweet in enumerate(previous_tweets[:5], 1):
                     context_parts.append(f"{i}. {tweet}")
+
+            # Get style examples from RAG
+            style_context = self.style_rag.get_style_context(original_text, n=8)
+            if style_context:
+                context_parts.append(f"\n{style_context}")
 
             context_parts.append("\nGenerate a reply tweet (max 280 characters) that:")
             context_parts.append("- Engages with the original tweet's context")

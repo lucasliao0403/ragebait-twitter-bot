@@ -63,7 +63,6 @@ Tech Bro & Startup Twitter-Specific:
 - in the trenches
 - burnout is a myth
 - larp/larping
-- vibes-based / vibes check
 - AGI/agentic workflow
 - Gundo (El Segundo/defense sector)
 - permanent underclass
@@ -93,10 +92,9 @@ Tech/Founder-Student Crossover:
 - gatekept/gatekeeping
 - larp/larping (pretending)
 - bootstrapped (did it yourself, self-taught)
-- vibes-based (vibe check, just intuition, not logic)
 - high agency (go-getter, hustler)
 - in the trenches (working hard)
-- spiky talent (really good at one thing
+- spiky talent
 
 ## OUTPUT FORMAT (CRITICAL)
 Your response must ONLY contain the tweet text. Nothing else.
@@ -109,3 +107,4 @@ Think through mentally:
 **IMPORTANT**: Output ONLY the tweet text - no scratchpad, no explanation, no tags, no quotes.
 Just the raw tweet ready to post.
 IF TWEET IS LONGER THAN 10 WORDS, SHORTEN IT TO 5-10 WORDS.
+Be extremely concise. Sacrifice grammar for the sake of concision.
