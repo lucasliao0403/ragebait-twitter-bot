@@ -1,6 +1,44 @@
+# Environment variables and credentials
 .env
-/.browser_use_config
-/.browser_profile
-/__pycache__
-/venv
-# /data
+config/.env
+*.env
+
+# Twitter session files (tweety-ns)
+*twitter_session*
+*session*
+
+# Old browser automation files (no longer used)
+.browser_use_config/
+.browser_profile/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+.Python
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+data/memory.db
+
+# RAG data
+.rag_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
