@@ -11,14 +11,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Dynamic Twitter Bot for Tech Trend Engagement that uses browser automation via browser-use library and adaptive learning through CoALA memory architecture. The bot uses an AI agent to navigate Twitter naturally through a browser interface and learns from interactions to improve engagement strategies.
+This is a Dynamic Twitter Bot for Tech Trend Engagement that uses tweety-ns for Twitter API interaction and adaptive learning through CoALA memory architecture. The bot interacts with Twitter through the tweety-ns library (reverse-engineered Twitter API) and learns from interactions to improve engagement strategies.
 
 ## Key References
 
 **IMPORTANT**: Claude Code should refer to these links whenever implementing features or troubleshooting issues:
 
 - **[CoALA Paper](https://arxiv.org/html/2309.02427v3#S4)**: Cognitive Architectures for Language Agents - theoretical framework for memory architecture implementation
-- **[Browser-use GitHub](https://github.com/browser-use/browser-use)**: Browser automation library documentation, examples, and API reference
+- **[tweety-ns GitHub](https://github.com/mahrtayyab/tweety)**: Twitter interaction library documentation, examples, and API reference
+- **[tweety-ns Documentation](https://mahrtayyab.github.io/tweety_docs/)**: Full documentation for tweety-ns library
 
 ## Coding Practices (IMPORTANT)
 
@@ -27,53 +28,55 @@ This is a Dynamic Twitter Bot for Tech Trend Engagement that uses browser automa
 
 ## Implementation Stages
 
-### Stage 1: Basic Browser Agent (Start Here)
-**Goal:** Simple browser bot that can interact with Twitter
+### Stage 1: Twitter API Bot (Current Implementation)
+**Goal:** Direct Twitter interaction bot using tweety-ns library
 
 **Environment Setup:**
 ```bash
-pip install browser-use groq anthropic python-dotenv
+pip install tweety-ns anthropic python-dotenv chromadb openai
 ```
 
 **Environment Variables (.env):**
 ```
-GROQ_API_KEY=your_groq_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 TWITTER_USERNAME=your_twitter_username
 TWITTER_PASSWORD=your_twitter_password
+OPENAI_API_KEY=your_openai_api_key  # For RAG embeddings
 ```
 
 **Core Files:**
-- `twitter_browser_bot.py` - Main bot class with session management
+- `twitter_tweety_bot.py` - Main bot class using tweety-ns
 - `memory_manager.py` - SQLite-based memory system
-- `system_prompt.txt` - Bot personality and behavior prompt for AI reply generation
+- `style_rag.py` - RAG system for style-based reply generation
+- `reply_prompt.txt` - Bot personality and behavior prompt for AI reply generation
 - `test_bot.py` - Simple CLI for manual testing
+- `import_tweets.py` - Script to import style tweets into RAG
 
 **Functionality:**
-- `start_session()` - Open browser and login
-- `post_tweet(text)` - Post a tweet
-- `get_timeline(count=10)` - Read home timeline
+- `start_session()` - Authenticate with Twitter (session-based, no repeated logins)
+- `post_tweet(text)` - Post a tweet via API
+- `get_timeline(count=10)` - Read home timeline (returns structured data)
 - `get_user_tweets(username, count=10)` - Get specific user's tweets
-- `generate_reply(tweet_url)` - Generate AI reply using Claude 4.5 Sonnet (NEW - Core Feature)
+- `generate_reply(tweet_url)` - Generate AI reply using Claude 4.5 Sonnet (Core Feature)
 - `reply_to_tweet(tweet_url, text)` - Reply to tweets
-- `search_tweets(query, count=10)` - Search functionality
-- `save_session()` - Save browser state manually
-- `close_session()` - Close browser
+- `search_tweets(query, count=10)` - Search functionality with filters
+- `close_session()` - Clean up session
 
 **Session Management:**
-- Persistent browser session (stays open between operations)
-- Manual session save/load to avoid repeated logins
-- 2FA support with manual input pause
+- Session-based authentication with tweety-ns
+- Automatic session persistence (no manual save needed)
+- 2FA support during initial login
 - Simple error handling (log and exit)
 
 **AI Reply Generation (Core Feature):**
 - `generate_reply(tweet_url)` - Generates contextual replies using Claude 4.5 Sonnet
-- System prompt in `/src/bot/system_prompt.txt` defines bot personality
+- System prompt in `/src/bot/reply_prompt.txt` defines bot personality
 - Memory-aware: Learns from previous tweets by the same author to match their style
-- Context-aware: Analyzes the original tweet content before generating reply
-- Engagement-optimized: Designed to create ragebait/controversial takes for maximum engagement
+- RAG-enhanced: Uses ChromaDB to retrieve similar style tweets for context
+- Context-aware: Fetches tweet details via tweety-ns before generating reply
+- Engagement-optimized: Designed to create ragebait/satirical takes for maximum engagement
 - CLI supports both AI-generated and manual replies with preview/confirmation
-- Uses Groq (Llama 4 Scout) for browser automation, Claude 4.5 Sonnet for content generation
+- Uses tweety-ns for Twitter API calls, Claude 4.5 Sonnet for content generation
 
 ### Stage 2: Basic Memory System
 **Goal:** JSON-based memory to track interactions and patterns
@@ -204,23 +207,36 @@ async def filter_timeline_for_replies(self, count=50):
 - Learn which authors consistently post reply-worthy content
 - Identify topics that perform well for the bot's personality
 
-## Browser Automation Details
+## Twitter API Interaction Details (tweety-ns)
 
 ### Session Lifecycle
 ```
-start_session() → login_to_twitter() → [perform_operations()] → save_session() → close_session()
+start_session() → authenticate_with_twitter() → [perform_operations()] → close_session()
 ```
 
+**Session Persistence:**
+- tweety-ns automatically saves session to `twitter_session` file
+- No repeated logins needed between runs
+- Session loaded automatically on next run
+
 ### Error Handling
-- Browser crashes: Log error and exit
-- Cloudflare challenges: Pause for manual intervention
-- Login failures: Retry once, then exit
-- 2FA prompts: Pause and wait for manual input
+- Authentication failures: Prompt for 2FA if needed, then retry
+- Rate limits: tweety-ns handles Twitter rate limits automatically
+- API errors: Log error with details and exit gracefully
+- Tweet not found: Handle exception and log warning
 
 ### Rate Limiting
-- Natural browser timing (browser-use handles this)
-- Conservative operation spacing
-- Monitor for Twitter rate limit warnings
+- tweety-ns respects Twitter's rate limits internally
+- Add 2-3 second delays between batch operations
+- Monitor for rate limit exceptions and pause if needed
+- "Abusing tweety can lead to read_only Twitter account" - use conservatively
+
+### Key Advantages over Browser Automation
+- 10-100x faster (no browser overhead)
+- More reliable (no UI changes breaking functionality)
+- Structured data returned (no parsing needed)
+- Native async support
+- Session persistence built-in
 
 ## Content Guidelines
 
@@ -229,7 +245,24 @@ start_session() → login_to_twitter() → [perform_operations()] → save_sessi
 
 ## Testing Workflow
 
-1. **Stage 1:** Test basic browser operations manually
+1. **Stage 1:** Test basic Twitter API operations using `python scripts/test_bot.py`
+   - Verify authentication and session persistence
+   - Test posting tweets, reading timeline, replying
+   - Validate AI reply generation with Claude
 2. **Stage 2:** Verify memory storage and retrieval
+   - Check SQLite database for logged interactions
+   - Verify friend profiles are tracked
 3. **Stage 3:** Test memory-driven decision making
+   - Ensure previous tweets inform reply generation
+   - Validate RAG system retrieves relevant style examples
 4. **Stage 4:** Monitor learning and adaptation
+   - Track engagement patterns over time
+   - Review strategy adjustments
+
+## Quick Start
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Set up `.env` file with credentials in `config/.env`
+3. Run test CLI: `python scripts/test_bot.py`
+4. Choose option 1 to authenticate (only needed once)
+5. Use options 2-6 to test functionality

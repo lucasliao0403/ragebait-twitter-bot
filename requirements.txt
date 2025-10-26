@@ -1,6 +1,5 @@
-browser-use
+tweety-ns
 python-dotenv
 anthropic
 chromadb
 openai
-selenium

@@ -1,6 +1,6 @@
 """
-Script to import style tweets from URLs using Selenium scraping.
-Add tweet URLs to TWEET_URLS list, run script to scrape and add to RAG database.
+Script to import style tweets from URLs using tweety-ns.
+Add tweet URLs to TWEET_URLS list, run script to fetch and add to RAG database.
 
 Usage:
     python scripts/import_tweets.py
@@ -8,15 +8,8 @@ Usage:
 
 import sys
 import os
-import time
-import re
+import asyncio
 from dotenv import load_dotenv
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException
 
 # Load environment variables from config/.env
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', '.env'))
@@ -25,14 +18,14 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', '.env'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.bot.style_rag import StyleBasedRAG
+from tweety import TwitterAsync
 
 # ============================================================================
 # CONFIGURATION: Add your tweet URLs here
 # ============================================================================
 
 TWEET_URLS = [
-   "https://x.com/mattpocockuk/status/1974528553569137095"
-    
+    "https://x.com/mattpocockuk/status/1974528553569137095"
 
     # Add more URLs here...
 ]
@@ -46,37 +39,21 @@ TWEET_CATEGORIES = {
 }
 
 # ============================================================================
-# SCRAPING LOGIC
+# FETCHING LOGIC
 # ============================================================================
 
-def setup_driver(headless=True):
-    """Initialize Chrome WebDriver with options"""
-    chrome_options = Options()
-
-    if headless:
-        chrome_options.add_argument("--headless=new")
-
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-    # Disable automation flags
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-
-    driver = webdriver.Chrome(options=chrome_options)
-
-    # Execute script to hide webdriver property
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-
-    return driver
+def extract_tweet_id_from_url(url: str) -> str:
+    """Extract tweet ID from URL"""
+    import re
+    match = re.search(r'/status/(\d+)', url)
+    if match:
+        return match.group(1)
+    raise ValueError(f"Could not extract tweet ID from URL: {url}")
 
 
 def extract_author_from_url(url: str) -> str:
     """Extract Twitter handle from URL"""
+    import re
     # URL format: https://twitter.com/username/status/...
     # or https://x.com/username/status/...
     match = re.search(r'(?:twitter\.com|x\.com)/([^/]+)/status/', url)
@@ -85,116 +62,53 @@ def extract_author_from_url(url: str) -> str:
     return "unknown"
 
 
-def scrape_tweet(driver, url: str, max_retries=3):
+async def fetch_tweet(client, url: str, max_retries=3):
     """
-    Scrape tweet text and metadata from URL.
+    Fetch tweet text and metadata from URL using tweety-ns.
 
     Returns:
         dict with keys: text, author, engagement (likes + retweets), url
-        or None if scraping failed
+        or None if fetching failed
     """
     for attempt in range(max_retries):
         try:
-            print(f"  Attempt {attempt + 1}/{max_retries}: Loading {url}")
+            print(f"  Attempt {attempt + 1}/{max_retries}: Fetching {url}")
 
-            driver.get(url)
+            # Extract tweet ID
+            tweet_id = extract_tweet_id_from_url(url)
 
-            # Wait for page to load - look for tweet text
-            wait = WebDriverWait(driver, 10)
+            # Fetch tweet details
+            tweet = await client.get_tweet_detail(tweet_id)
 
-            # Twitter/X uses article elements for tweets
-            # The main tweet is usually the first article with a specific data-testid
-            try:
-                # Wait for tweet to appear
-                tweet_element = wait.until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, 'article[data-testid="tweet"]'))
-                )
+            # Extract data
+            tweet_text = tweet.text
+            author = tweet.author.username
+            engagement = (tweet.likes or 0) + (tweet.retweet_counts or 0)
 
-                # Give it a moment to fully render
-                time.sleep(2)
+            print(f"    ✅ Fetched: @{author}: \"{tweet_text[:60]}...\" ({engagement} engagement)")
 
-                # Extract tweet text - it's in a div with specific data-testid or lang attribute
-                tweet_text = None
-
-                # Try multiple selectors (Twitter changes these frequently)
-                selectors = [
-                    'div[data-testid="tweetText"]',
-                    'div[lang]',  # Tweet text has lang attribute
-                    'div.css-1rynq56',  # Common tweet text class
-                ]
-
-                for selector in selectors:
-                    try:
-                        text_elements = tweet_element.find_elements(By.CSS_SELECTOR, selector)
-                        for elem in text_elements:
-                            text = elem.text.strip()
-                            if text and len(text) > 0:
-                                tweet_text = text
-                                break
-                        if tweet_text:
-                            break
-                    except:
-                        continue
-
-                if not tweet_text:
-                    print(f"    ⚠️  Could not extract tweet text")
-                    if attempt < max_retries - 1:
-                        time.sleep(3)
-                        continue
-                    return None
-
-                # Extract engagement metrics (likes, retweets)
-                engagement = 0
-                try:
-                    # Look for engagement metrics
-                    engagement_elements = driver.find_elements(By.CSS_SELECTOR, 'div[role="group"] span')
-                    for elem in engagement_elements:
-                        text = elem.text.strip()
-                        # Parse numbers like "1.2K", "500", "2M"
-                        if text and any(c.isdigit() for c in text):
-                            # Convert to int
-                            num_str = text.replace('K', '000').replace('M', '000000').replace(',', '')
-                            try:
-                                num = int(''.join(c for c in num_str if c.isdigit()))
-                                engagement += num
-                            except:
-                                pass
-                except:
-                    pass
-
-                # Extract author from URL (more reliable than scraping)
-                author = extract_author_from_url(url)
-
-                print(f"    ✅ Scraped: @{author}: \"{tweet_text[:60]}...\" ({engagement} engagement)")
-
-                return {
-                    'text': tweet_text,
-                    'author': author,
-                    'engagement': engagement,
-                    'url': url
-                }
-
-            except TimeoutException:
-                print(f"    ⚠️  Timeout waiting for tweet to load")
-                if attempt < max_retries - 1:
-                    time.sleep(5)
-                    continue
-                return None
+            return {
+                'text': tweet_text,
+                'author': author,
+                'engagement': engagement,
+                'url': url
+            }
 
         except Exception as e:
-            print(f"    ❌ Error scraping tweet: {e}")
+            print(f"    ❌ Error fetching tweet: {e}")
             if attempt < max_retries - 1:
-                time.sleep(5)
+                print(f"    Retrying in 3 seconds...")
+                await asyncio.sleep(3)
                 continue
             return None
 
     return None
 
 
-def main():
+async def main():
     """Main import script"""
     print("=" * 70)
-    print("TECH TWITTER STYLE TWEET IMPORTER")
+    print("TECH TWITTER STYLE TWEET IMPORTER (tweety-ns)")
     print("=" * 70)
     print()
 
@@ -223,26 +137,30 @@ def main():
     print(f"📊 Current database size: {rag.count()} style tweets")
     print()
 
-    # Setup Selenium driver
-    print("🌐 Starting Chrome WebDriver...")
+    # Setup tweety-ns client
+    print("🐦 Initializing tweety-ns client...")
     try:
-        driver = setup_driver(headless=True)
-        print("✅ WebDriver ready")
+        client = TwitterAsync("tweet_importer_session")
+
+        # Try to load existing session
+        try:
+            await client.connect()
+            print("✅ Connected using saved session")
+        except Exception:
+            print("⚠️  No saved session found")
+            print("You may need to authenticate if rate limits are hit.")
+            print("Run this script interactively and call client.start() to login.")
     except Exception as e:
-        print(f"❌ Failed to start WebDriver: {e}")
-        print()
-        print("Make sure you have Chrome and chromedriver installed:")
-        print("  brew install chromedriver  # macOS")
-        print("  apt-get install chromium-chromedriver  # Linux")
+        print(f"❌ Failed to initialize client: {e}")
         return
 
     print()
     print("=" * 70)
-    print("SCRAPING TWEETS")
+    print("FETCHING TWEETS")
     print("=" * 70)
     print()
 
-    # Scrape and import each tweet
+    # Fetch and import each tweet
     successful = 0
     failed = 0
     skipped = 0
@@ -256,8 +174,8 @@ def main():
             skipped += 1
             continue
 
-        # Scrape tweet
-        tweet_data = scrape_tweet(driver, url)
+        # Fetch tweet
+        tweet_data = await fetch_tweet(client, url)
 
         if tweet_data:
             # Get category if specified
@@ -277,17 +195,14 @@ def main():
                 print(f"  ❌ Failed to add to RAG: {e}")
                 failed += 1
         else:
-            print(f"  ❌ Failed to scrape tweet")
+            print(f"  ❌ Failed to fetch tweet")
             failed += 1
 
         print()
 
         # Be nice to Twitter - add delay between requests
         if i < len(TWEET_URLS):
-            time.sleep(3)
-
-    # Cleanup
-    driver.quit()
+            await asyncio.sleep(2)
 
     # Summary
     print("=" * 70)
@@ -305,4 +220,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

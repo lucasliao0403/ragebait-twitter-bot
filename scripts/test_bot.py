@@ -7,31 +7,30 @@ import asyncio
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from bot.twitter_browser_bot import TwitterBrowserBot
+from bot.twitter_tweety_bot import TwitterTweetyBot
 
 def print_menu():
     """Print the available commands menu"""
-    print("\n=== Twitter Browser Bot Test CLI ===")
+    print("\n=== Twitter Tweety Bot Test CLI ===")
     print("1. Start session (login to Twitter)")
     print("2. Post tweet")
     print("3. Get timeline")
     print("4. Get user tweets")
     print("5. Reply to tweet")
     print("6. Search tweets")
-    print("7. Save session")
-    print("8. Close session")
-    print("9. Exit")
-    print("=====================================")
+    print("7. Close session")
+    print("8. Exit")
+    print("====================================")
 
 async def main():
-    bot = TwitterBrowserBot()
+    bot = TwitterTweetyBot()
 
-    print("Welcome to Twitter Browser Bot Test CLI!")
+    print("Welcome to Twitter Tweety Bot Test CLI!")
     print("Make sure you have set up your .env file with Twitter credentials.")
 
     while True:
         print_menu()
-        choice = input("\nEnter your choice (1-9): ").strip()
+        choice = input("\nEnter your choice (1-8): ").strip()
 
         try:
             if choice == "1":
@@ -60,9 +59,9 @@ async def main():
                 count = int(count) if count.isdigit() else 10
 
                 print(f"Fetching {count} tweets from timeline...")
-                result = await bot.get_timeline(count)
+                tweets = await bot.get_timeline(count)
                 print("✓ Timeline fetched successfully!")
-
+                print(f"\n📊 Retrieved {len(tweets)} tweets")
 
             elif choice == "4":
                 if not bot.logged_in:
@@ -78,9 +77,9 @@ async def main():
                 count = int(count) if count.isdigit() else 10
 
                 print(f"Fetching {count} tweets from @{username}...")
-                result = await bot.get_user_tweets(username, count)
+                tweets = await bot.get_user_tweets(username, count)
                 print(f"✓ Tweets from @{username} fetched successfully!")
-
+                print(f"\n📊 Retrieved {len(tweets)} tweets")
 
             elif choice == "5":
                 if not bot.logged_in:
@@ -135,26 +134,22 @@ async def main():
                 count = int(count) if count.isdigit() else 10
 
                 print(f"Searching for '{query}'...")
-                result = await bot.search_tweets(query, count)
+                tweets = await bot.search_tweets(query, count)
                 print(f"✓ Search for '{query}' completed successfully!")
-
+                print(f"\n📊 Found {len(tweets)} tweets")
 
             elif choice == "7":
-                bot.save_session()
-                print("✓ Session saved!")
-
-            elif choice == "8":
                 await bot.close_session()
                 print("✓ Session closed!")
 
-            elif choice == "9":
+            elif choice == "8":
                 print("Closing session and exiting...")
                 await bot.close_session()
                 print("Goodbye!")
                 sys.exit(0)
 
             else:
-                print("❌ Invalid choice. Please enter a number between 1-9.")
+                print("❌ Invalid choice. Please enter a number between 1-8.")
 
         except KeyboardInterrupt:
             print("\n\nInterrupted by user. Closing session...")
