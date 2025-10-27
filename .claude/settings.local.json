@@ -3,7 +3,8 @@
     "allow": [
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.browser-use.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(sqlite3:*)"
     ],
     "deny": [],
     "ask": []
