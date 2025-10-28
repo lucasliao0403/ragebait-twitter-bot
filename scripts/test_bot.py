@@ -8,6 +8,7 @@ import asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from bot.twitter_tweety_bot import TwitterTweetyBot
+from bot.twitter_browser_bot import TwitterBrowserBot
 
 def print_menu():
     """Print the available commands menu"""
@@ -23,9 +24,12 @@ def print_menu():
     print("====================================")
 
 async def main():
-    bot = TwitterTweetyBot()
+    # Initialize BOTH bots
+    tweety_bot = TwitterTweetyBot()      # For fast reads
+    browser_bot = TwitterBrowserBot()    # For reliable writes
 
-    print("Welcome to Twitter Tweety Bot Test CLI!")
+    print("Welcome to Twitter Hybrid Bot Test CLI!")
+    print("Using tweety-ns for reads, browser-use for writes")
     print("Make sure you have set up your .env file with Twitter credentials.")
 
     while True:
@@ -34,37 +38,45 @@ async def main():
 
         try:
             if choice == "1":
-                print("Starting session and logging in...")
-                await bot.start_session()
-                print("✓ Successfully logged in!")
+                print("Starting sessions for both bots...")
+                print("\n[1/2] Starting tweety-ns session...")
+                await tweety_bot.start_session()
+                print("✓ Tweety-ns logged in!")
+
+                print("\n[2/2] Starting browser-use session...")
+                await browser_bot.start_session()
+                print("✓ Browser-use logged in!")
+
+                print("\n✓ Both sessions ready!")
 
             elif choice == "2":
-                if not bot.logged_in:
+                if not browser_bot.logged_in:
                     print("❌ Not logged in. Please start session first.")
                     continue
 
                 text = input("Enter tweet text: ").strip()
                 if text:
-                    await bot.post_tweet(text)
+                    print("📝 Posting with browser-use...")
+                    await browser_bot.post_tweet(text)
                     print("✓ Tweet posted!")
                 else:
                     print("❌ Tweet text cannot be empty.")
 
             elif choice == "3":
-                if not bot.logged_in:
+                if not tweety_bot.logged_in:
                     print("❌ Not logged in. Please start session first.")
                     continue
 
                 count = input("Number of tweets to fetch (default 10): ").strip()
                 count = int(count) if count.isdigit() else 10
 
-                print(f"Fetching {count} tweets from timeline...")
-                tweets = await bot.get_timeline(count)
+                print(f"📖 Fetching {count} tweets with tweety-ns...")
+                tweets = await tweety_bot.get_timeline(count)
                 print("✓ Timeline fetched successfully!")
                 print(f"\n📊 Retrieved {len(tweets)} tweets")
 
             elif choice == "4":
-                if not bot.logged_in:
+                if not tweety_bot.logged_in:
                     print("❌ Not logged in. Please start session first.")
                     continue
 
@@ -76,13 +88,13 @@ async def main():
                 count = input("Number of tweets to fetch (default 10): ").strip()
                 count = int(count) if count.isdigit() else 10
 
-                print(f"Fetching {count} tweets from @{username}...")
-                tweets = await bot.get_user_tweets(username, count)
+                print(f"📖 Fetching {count} tweets from @{username} with tweety-ns...")
+                tweets = await tweety_bot.get_user_tweets(username, count)
                 print(f"✓ Tweets from @{username} fetched successfully!")
                 print(f"\n📊 Retrieved {len(tweets)} tweets")
 
             elif choice == "5":
-                if not bot.logged_in:
+                if not browser_bot.logged_in:
                     print("❌ Not logged in. Please start session first.")
                     continue
 
@@ -98,8 +110,8 @@ async def main():
                 reply_choice = input("Choose option (1-2): ").strip()
 
                 if reply_choice == "1":
-                    print("Generating AI reply...")
-                    reply_text = await bot.generate_reply(tweet_url)
+                    print("🤖 Generating AI reply with browser-use...")
+                    reply_text = await browser_bot.generate_reply(tweet_url)
                     print(f"\nGenerated reply: {reply_text}")
 
                     # Ask for confirmation
@@ -117,11 +129,12 @@ async def main():
                     print("❌ Invalid choice.")
                     continue
 
-                await bot.reply_to_tweet(tweet_url, reply_text)
+                print("💬 Replying with browser-use...")
+                await browser_bot.reply_to_tweet(tweet_url, reply_text)
                 print("✓ Reply posted!")
 
             elif choice == "6":
-                if not bot.logged_in:
+                if not tweety_bot.logged_in:
                     print("❌ Not logged in. Please start session first.")
                     continue
 
@@ -133,18 +146,21 @@ async def main():
                 count = input("Number of tweets to fetch (default 10): ").strip()
                 count = int(count) if count.isdigit() else 10
 
-                print(f"Searching for '{query}'...")
-                tweets = await bot.search_tweets(query, count)
+                print(f"🔍 Searching for '{query}' with tweety-ns...")
+                tweets = await tweety_bot.search_tweets(query, count)
                 print(f"✓ Search for '{query}' completed successfully!")
                 print(f"\n📊 Found {len(tweets)} tweets")
 
             elif choice == "7":
-                await bot.close_session()
-                print("✓ Session closed!")
+                print("Closing both sessions...")
+                await tweety_bot.close_session()
+                await browser_bot.close_session()
+                print("✓ Both sessions closed!")
 
             elif choice == "8":
-                print("Closing session and exiting...")
-                await bot.close_session()
+                print("Closing sessions and exiting...")
+                await tweety_bot.close_session()
+                await browser_bot.close_session()
                 print("Goodbye!")
                 sys.exit(0)
 
@@ -152,8 +168,9 @@ async def main():
                 print("❌ Invalid choice. Please enter a number between 1-8.")
 
         except KeyboardInterrupt:
-            print("\n\nInterrupted by user. Closing session...")
-            await bot.close_session()
+            print("\n\nInterrupted by user. Closing sessions...")
+            await tweety_bot.close_session()
+            await browser_bot.close_session()
             sys.exit(0)
 
         except Exception as e:

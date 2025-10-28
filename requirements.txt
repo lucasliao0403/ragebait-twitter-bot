@@ -1,4 +1,5 @@
 tweety-ns
+browser-use
 python-dotenv
 anthropic
 chromadb
