@@ -110,7 +110,7 @@ class TweetyBot:
             tweets = []
             cursor = None
             batch_count = 0
-            MAX_TWEETS_LIMIT = 600
+            MAX_TWEETS_LIMIT = 2000
             max_batches = MAX_TWEETS_LIMIT // 20  # Safety limit (30 batches * ~20 tweets = 600 max)
 
             while len(tweets) < count and batch_count < max_batches:
@@ -230,7 +230,7 @@ class TweetyBot:
             tweet_id = self._extract_tweet_id_from_url(tweet_url)
             logger.info(f"Fetching tweet details for ID: {tweet_id}")
 
-            tweet = await self.client.get_tweet_detail(tweet_id)
+            tweet = await self.client.tweet_detail(tweet_id)
             original_author = tweet.author.username
             original_text = tweet.text
 
@@ -270,7 +270,8 @@ class TweetyBot:
                     context_parts.append(f"{i}. {tweet}")
 
             # Get style examples from RAG
-            style_context = self.style_rag.get_style_context(original_text, n=8)
+            # TODO: dynamic number of examples?
+            style_context = self.style_rag.get_style_context(original_text, n=12)
             if style_context:
                 context_parts.append(f"\n{style_context}")
 
@@ -285,7 +286,7 @@ class TweetyBot:
 
             # Call Claude
             response = self.anthropic.messages.create(
-                model="claude-sonnet-4-5",
+                model="claude-opus-4-1",
                 max_tokens=150,
                 temperature=1.0,
                 system=system_prompt,

@@ -9,14 +9,28 @@ claude.ai/code guidance for this repo.
 - when adding or removing packages: ALWAYS update requirements.txt
 - NEVER read .env files
 
+## DOCUMENTATION STYLE
+
+write docs direct, concise. sacrifice grammar for brevity.
+- "bot fetches tweets" → "fetches tweets"
+- "The system uses" → "uses"
+- fragments over sentences
+- keywords emphasized
+- no fluff
+
 ## Project Overview
 
 twitter bot. uses tweety-ns (reverse-engineered twitter api) for reads, browser-use for writes. learns from interactions via memory + RAG.
 
-**hybrid architecture:**
-- tweety_bot.py: fast reads (timeline, search, user tweets)
-- browser_bot.py: reliable writes (post, reply)
-- test_bot.py: combines both, routes operations to correct bot
+**hybrid architecture (why?):**
+- **tweety-ns limitations**: can only READ (timeline, search, user tweets). cannot post or reply.
+- **browser-use solution**: handles all WRITES (post tweets, reply to tweets).
+- result: tweety for fast reads, browser for necessary writes.
+
+**files:**
+- tweety_bot.py: reads only (timeline, search, user tweets)
+- browser_bot.py: writes only (post, reply)
+- test_bot.py: routes operations to correct bot
 
 ## Key References
 
@@ -73,7 +87,7 @@ data/
 
 ## Core Functionality
 
-### TweetyBot (reads)
+### TweetyBot (reads only - tweety-ns can't write)
 
 ```python
 await bot.start_session()           # auth with TWITTER_SESSION_ID
@@ -89,7 +103,9 @@ await bot.close_session()
 3. adds high-quality tweets to RAG
 4. logs all to memory.db
 
-### BrowserBot (writes)
+**why use tweety?** 10-100x faster than browser automation. structured data. no UI parsing.
+
+### BrowserBot (writes only - tweety-ns can't post/reply)
 
 ```python
 await bot.start_session()           # browser automation login
@@ -98,6 +114,8 @@ reply = await bot.generate_reply("tweet_url")  # claude 4.5 sonnet
 await bot.reply_to_tweet("tweet_url", reply)
 await bot.close_session()
 ```
+
+**why use browser?** tweety-ns cannot post or reply. only option for writes.
 
 ## Memory System (SQLite)
 
@@ -143,13 +161,31 @@ memory.log_conversation(thread_id, original_tweet, reply_tweet)
 
 ## AI Reply Generation
 
-**generate_reply(tweet_url):**
-1. fetch tweet via tweety-ns
+**correct pattern:**
+```python
+# 1. tweety reads + generates reply (fast, reliable)
+reply = await tweety_bot.generate_reply(tweet_url)
+
+# 2. browser posts reply (only writes)
+await browser_bot.reply_to_tweet(tweet_url, reply)
+```
+
+**tweety_bot.generate_reply(tweet_url):**
+1. fetch tweet via tweety-ns (read operation - uses tweet_detail())
 2. get previous tweets from author (memory.db)
 3. retrieve similar style tweets (chromadb)
 4. combine in prompt with reply_prompt.txt personality
 5. call claude 4.5 sonnet (temp=1.0, max_tokens=150)
-6. return reply text
+6. return reply text (does NOT post)
+
+**browser_bot.reply_to_tweet(tweet_url, text):**
+- clicks reply button
+- types text
+- submits
+
+**why split?**
+- browser_bot.generate_reply() loops forever trying to extract tweet data (browser-use unreliable at data extraction)
+- tweety-ns reliable for reads, browser-use only for writes
 
 ## Session Management
 
@@ -175,13 +211,14 @@ memory.log_conversation(thread_id, original_tweet, reply_tweet)
 python scripts/test_bot.py
 
 # options:
-1. start both sessions
+1. start both sessions (tweety + browser)
 2. post tweet (browser)
 3. get timeline (tweety) → auto-adds to RAG
 4. get user tweets (tweety)
-5. generate + reply (browser + claude)
+5. generate + reply (tweety reads/generates, browser posts)
 6. search tweets (tweety)
 7. close sessions
+8. exit
 ```
 
 ## Guidelines
@@ -201,3 +238,4 @@ Most important:
     - post tweet doesn't always stop
     - login doesn't always work
 - check out cerebras to replace groq
+- dynamic number of RAG results (currently hardcoded to 12 in tweety_bot.py)

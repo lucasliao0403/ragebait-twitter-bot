@@ -97,7 +97,7 @@ async def fetch_tweet(client, url: str, max_retries=3):
             tweet_id = extract_tweet_id_from_url(url)
 
             # Fetch tweet details
-            tweet = await client.get_tweet_detail(tweet_id)
+            tweet = await client.tweet_detail(tweet_id)
 
             # Extract data
             tweet_text = tweet.text
