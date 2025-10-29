@@ -1,6 +1,8 @@
 import os
 import chromadb
-from openai import OpenAI
+from google import genai
+from google.genai import types
+import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
@@ -30,12 +32,13 @@ class StyleBasedRAG:
             metadata={"description": "Tweets that exemplify the right tech Twitter vibe"}
         )
 
-        # Initialize OpenAI for embeddings
-        api_key = os.getenv('OPENAI_API_KEY')
+        # Initialize Gemini for embeddings
+        api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment")
+            raise ValueError("GEMINI_API_KEY not found in environment")
 
-        self.openai = OpenAI(api_key=api_key)
+        self.genai_client = genai.Client(api_key=api_key)
+        self.embedding_dim = 768  # Recommended dimension for storage efficiency
 
         logger.info(f"StyleBasedRAG initialized with {self.collection.count()} style tweets")
 
@@ -50,11 +53,19 @@ class StyleBasedRAG:
             category: Optional category like 'hot_take', 'joke', 'advice'
         """
         try:
-            # Create embedding
-            embedding = self.openai.embeddings.create(
-                input=tweet,
-                model="text-embedding-3-small"
-            ).data[0].embedding
+            # Create embedding using Gemini with RETRIEVAL_DOCUMENT task type
+            result = self.genai_client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=tweet,
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=self.embedding_dim
+                )
+            )
+
+            # Normalize embedding (required for dimensions < 3072)
+            embedding_values = np.array(result.embeddings[0].values)
+            normalized_embedding = (embedding_values / np.linalg.norm(embedding_values)).tolist()
 
             # Prepare metadata
             metadata = {
@@ -71,7 +82,7 @@ class StyleBasedRAG:
 
             # Add to collection
             self.collection.add(
-                embeddings=[embedding],
+                embeddings=[normalized_embedding],
                 documents=[tweet],
                 metadatas=[metadata],
                 ids=[tweet_id]
@@ -95,11 +106,19 @@ class StyleBasedRAG:
             Formatted string with style examples for the LLM prompt
         """
         try:
-            # Create embedding for query
-            query_embedding = self.openai.embeddings.create(
-                input=original_tweet,
-                model="text-embedding-3-small"
-            ).data[0].embedding
+            # Create embedding for query using RETRIEVAL_QUERY task type
+            result = self.genai_client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=original_tweet,
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_QUERY",
+                    output_dimensionality=self.embedding_dim
+                )
+            )
+
+            # Normalize embedding (required for dimensions < 3072)
+            embedding_values = np.array(result.embeddings[0].values)
+            query_embedding = (embedding_values / np.linalg.norm(embedding_values)).tolist()
 
             # Query collection
             results = self.collection.query(

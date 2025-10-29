@@ -6,7 +6,7 @@ claude.ai/code guidance for this repo.
 
 - implement minimum. no extra tests/examples unless asked.
 - when editing prompts: minimal changes only. don't touch unrelated text.
-- new packages → update requirements.txt
+- when adding or removing packages: ALWAYS update requirements.txt
 - NEVER read .env files
 
 ## Project Overview
@@ -33,9 +33,8 @@ pip install -r requirements.txt
 - tweety-ns (twitter api)
 - browser-use (posting/replies)
 - anthropic (claude for replies)
-- openai (embeddings for RAG)
 - chromadb (vector db for style examples)
-- google-generativeai (gemini for tweet classification)
+- google-generativeai (gemini for embeddings + tweet classification)
 - python-dotenv
 
 **config/.env:**
@@ -43,8 +42,7 @@ pip install -r requirements.txt
 # required
 TWITTER_SESSION_ID=your_session_id
 ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
+GEMINI_API_KEY=...        # embeddings + classification
 GROQ_API_KEY=...
 
 # optional (browser-use fallback)
@@ -128,7 +126,8 @@ memory.log_conversation(thread_id, original_tweet, reply_tweet)
 **style_rag.py:**
 - learns writing style from example tweets
 - stores in .rag_data/chroma.sqlite3
-- uses openai embeddings (text-embedding-3-small)
+- uses gemini embeddings (gemini-embedding-001, 768-dim, normalized)
+- task types: RETRIEVAL_DOCUMENT (storing), RETRIEVAL_QUERY (searching)
 - retrieves similar tweets for reply generation context
 
 **adding tweets:**
@@ -191,6 +190,14 @@ python scripts/test_bot.py
 - ragebait style: controversial, hot takes, engagement-optimized
 - lowercase casual tech twitter voice
 
-## Future
-
-- host chromadb remotely (avoid local re-init overhead)
+**TODO:**
+Most important:
+- implement fully autonomous workflow for reply generation
+- clean up logging
+- host chromadb somewhere so it doesn't have to initialize every time.
+- memory/self improvement: 
+    - learns from engagement. currently engagement isn't tracked
+- improve consistency of browser use functions:
+    - post tweet doesn't always stop
+    - login doesn't always work
+- check out cerebras to replace groq

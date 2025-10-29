@@ -3,5 +3,5 @@ browser-use
 python-dotenv
 anthropic
 chromadb
-openai
 google-generativeai
+numpy
