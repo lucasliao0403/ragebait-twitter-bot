@@ -126,23 +126,6 @@ pip install sqlite3 (built-in with Python)
 
 **FUTURE FEATURE:** host chromadb somewhere so it doesn't have to initialize every time.
 
-### Stage 4: Simple Learning Loop
-**Goal:** Basic feedback-driven improvement without over-engineering
-
-**Functionality:**
-- **Engagement Tracking:** Monitor likes, replies, unfollows for each interaction
-- **Pattern Recognition:** Identify what works with specific friends and timing
-- **Strategy Adjustment:** Simple rules based on clear success/failure signals
-- **Relationship Monitoring:** Track friendship health and adjust approach
-
-**Learning Process:**
-```python
-# After each interaction
-engagement = measure_engagement(tweet_id, time_window=1hour)
-update_friend_preferences(friend_id, interaction_type, engagement)
-adjust_strategy_confidence(strategy_type, success_rate)
-maintain_relationship_score(friend_id, engagement_trend)
-```
 
 **Practical Features:**
 - Friend-specific communication style adaptation
@@ -177,27 +160,8 @@ maintain_relationship_score(friend_id, engagement_trend)
   - "Thank you" posts
   - Links without hot takes
 
-**Implementation Approach:**
-```python
-async def filter_timeline_for_replies(self, count=50):
-    """Scroll timeline and identify reply-worthy tweets"""
-
-    # 1. Fetch timeline tweets (existing get_timeline method)
-    timeline = await self.get_timeline(count)
-
-    # 2. For each tweet, use Claude to classify as reply-worthy or not
-    for tweet in timeline:
-        classification = await self.classify_tweet(tweet)
-        if classification['worth_replying_to']:
-            # Add to reply queue with priority score
-            await self.queue_reply(tweet, priority=classification['engagement_score'])
-
-    # 3. Reply to top N tweets from queue
-    return reply_queue.sorted_by_priority()[:5]
-```
-
 **Classification Function:**
-- Use Claude with lightweight prompt to score tweets 0-10 for engagement potential
+- Use Gemini 2.5 flash to score tweets for engagement potential
 - Consider: controversy level, opinion strength, debate potential, emotional tone
 - Fast classification (small token usage, temperature=0 for consistency)
 - Store classifications in memory to improve filtering over time
