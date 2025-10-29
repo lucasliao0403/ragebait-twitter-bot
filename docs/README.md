@@ -2,7 +2,9 @@
 
 ## Overview
 
-An AI-powered Twitter bot that uses browser automation and social memory to engage naturally with tech Twitter communities. Built with browser-use library and Anthropic Claude, the bot learns friend communication styles, tracks engagement patterns, and adapts its personality for authentic interactions.
+An agentic Twitter bot to ragebait tech twitter.
+
+Built using browser-use and tweety-ns.
 
 ## Core Functionality
 
@@ -34,17 +36,18 @@ Simple automated Twitter interactions with session management.
 - Basic engagement metrics
 - Conversation context logging
 
-**Stage 3: SQLite Social Memory**
-- Interaction history with engagement analysis
-- Friend profiles with communication styles
-- Success pattern recognition and timing optimization
-- Active conversation thread tracking
-
-**Stage 4: Adaptive Learning Loop**
-- Engagement-driven strategy adjustment
-- Friend-specific communication adaptation
-- Relationship health monitoring
-- Content effectiveness optimization
+**TODO:**
+- implement RAG
+    - remove hard coded rag examples (remove from DB as well)
+    - find ~100 high quality tweet examples
+- implement fully autonomous workflow for reply generation
+- improve consistency of browser use functions:
+    - post tweet doesn't always stop
+    - login doesn't always work
+- check out cerebras
+- clean up (de-slopify) documentation
+- clean up logging
+- host chromadb somewhere so it doesn't have to initialize every time.
 
 ## Key Features
 

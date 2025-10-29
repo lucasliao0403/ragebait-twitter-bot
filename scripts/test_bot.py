@@ -7,8 +7,8 @@ import asyncio
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from bot.twitter_tweety_bot import TwitterTweetyBot
-from bot.twitter_browser_bot import TwitterBrowserBot
+from bot.tweety_bot import TweetyBot
+from bot.browser_bot import BrowserBot
 
 def print_menu():
     """Print the available commands menu"""
@@ -25,8 +25,8 @@ def print_menu():
 
 async def main():
     # Initialize BOTH bots
-    tweety_bot = TwitterTweetyBot()      # For fast reads
-    browser_bot = TwitterBrowserBot()    # For reliable writes
+    tweety_bot = TweetyBot()      # For fast reads
+    browser_bot = BrowserBot()    # For reliable writes
 
     print("Welcome to Twitter Hybrid Bot Test CLI!")
     print("Using tweety-ns for reads, browser-use for writes")

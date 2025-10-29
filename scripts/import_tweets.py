@@ -1,9 +1,10 @@
 """
 Script to import style tweets from URLs using tweety-ns.
-Add tweet URLs to TWEET_URLS list, run script to fetch and add to RAG database.
+Reads tweet URLs from scripts/tweets.txt (one URL per line).
 
 Usage:
-    python scripts/import_tweets.py
+    1. Add tweet URLs to scripts/tweets.txt (one per line)
+    2. Run: python scripts/import_tweets.py
 """
 
 import sys
@@ -21,26 +22,44 @@ from src.bot.style_rag import StyleBasedRAG
 from tweety import TwitterAsync
 
 # ============================================================================
-# CONFIGURATION: Add your tweet URLs here
-# ============================================================================
-
-TWEET_URLS = [
-    "https://x.com/mattpocockuk/status/1974528553569137095"
-
-    # Add more URLs here...
-]
-
-# Optional: Categorize tweets
-TWEET_CATEGORIES = {
-    # URL -> category mapping
-    "https://twitter.com/sama/status/1234567890": "advice",
-    "https://twitter.com/karpathy/status/1234567892": "observation",
-    # Add more mappings as needed...
-}
-
-# ============================================================================
 # FETCHING LOGIC
 # ============================================================================
+
+def load_tweet_urls(file_path: str) -> list[str]:
+    """
+    Load tweet URLs from a text file (one URL per line).
+
+    Args:
+        file_path: Path to the text file containing URLs
+
+    Returns:
+        List of tweet URLs
+    """
+    urls = []
+
+    if not os.path.exists(file_path):
+        print(f"⚠️  File not found: {file_path}")
+        print(f"Creating empty {file_path} file...")
+        with open(file_path, 'w') as f:
+            f.write("# Add tweet URLs here, one per line\n")
+            f.write("# Example: https://twitter.com/sama/status/1234567890\n")
+        return urls
+
+    with open(file_path, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                continue
+
+            # Basic validation - check if it looks like a Twitter URL
+            if 'twitter.com' in line or 'x.com' in line:
+                urls.append(line)
+            else:
+                print(f"⚠️  Line {line_num}: Skipping invalid URL: {line}")
+
+    return urls
 
 def extract_tweet_id_from_url(url: str) -> str:
     """Extract tweet ID from URL"""
@@ -112,21 +131,28 @@ async def main():
     print("=" * 70)
     print()
 
-    # Check if we have URLs to process
-    if not TWEET_URLS or all(url.startswith("https://twitter.com/") and "1234567" in url for url in TWEET_URLS):
-        print("⚠️  No real tweet URLs found!")
+    # Load tweet URLs from file
+    tweets_file = os.path.join(os.path.dirname(__file__), 'tweets.txt')
+    print(f"📄 Loading tweet URLs from: {tweets_file}")
+
+    tweet_urls = load_tweet_urls(tweets_file)
+
+    if not tweet_urls:
         print()
-        print("Please edit scripts/import_tweets.py and replace the example URLs")
-        print("in TWEET_URLS with real Twitter/X URLs you want to import.")
+        print("⚠️  No tweet URLs found!")
+        print()
+        print(f"Please add tweet URLs to {tweets_file}")
+        print("Format: One URL per line")
         print()
         print("Example:")
-        print('  TWEET_URLS = [')
-        print('      "https://twitter.com/sama/status/1234567890123456789",')
-        print('      "https://twitter.com/karpathy/status/9876543210987654321",')
-        print('  ]')
+        print('  https://twitter.com/sama/status/1234567890123456789')
+        print('  https://twitter.com/karpathy/status/9876543210987654321')
+        print('  https://x.com/levelsio/status/1234567890123456789')
+        print()
+        print("Lines starting with # are ignored (comments)")
         return
 
-    print(f"📋 Found {len(TWEET_URLS)} tweet URLs to import")
+    print(f"📋 Found {len(tweet_urls)} tweet URLs to import")
     print()
 
     # Initialize RAG database
@@ -163,31 +189,21 @@ async def main():
     # Fetch and import each tweet
     successful = 0
     failed = 0
-    skipped = 0
 
-    for i, url in enumerate(TWEET_URLS, 1):
-        print(f"[{i}/{len(TWEET_URLS)}] Processing: {url}")
-
-        # Skip placeholder URLs
-        if "1234567" in url:
-            print("  ⏭️  Skipping placeholder URL")
-            skipped += 1
-            continue
+    for i, url in enumerate(tweet_urls, 1):
+        print(f"[{i}/{len(tweet_urls)}] Processing: {url}")
 
         # Fetch tweet
         tweet_data = await fetch_tweet(client, url)
 
         if tweet_data:
-            # Get category if specified
-            category = TWEET_CATEGORIES.get(url)
-
-            # Add to RAG
+            # Add to RAG (no categories - keep it simple)
             try:
                 rag.add_style_tweet(
                     tweet=tweet_data['text'],
                     author=tweet_data['author'],
                     engagement=tweet_data['engagement'],
-                    category=category
+                    category=None
                 )
                 successful += 1
                 print(f"  💾 Added to RAG database")
@@ -201,7 +217,7 @@ async def main():
         print()
 
         # Be nice to Twitter - add delay between requests
-        if i < len(TWEET_URLS):
+        if i < len(tweet_urls):
             await asyncio.sleep(2)
 
     # Summary
@@ -211,7 +227,6 @@ async def main():
     print()
     print(f"✅ Successfully imported: {successful}")
     print(f"❌ Failed: {failed}")
-    print(f"⏭️  Skipped (placeholders): {skipped}")
     print()
     print(f"📊 Total tweets in database: {rag.count()}")
     print()

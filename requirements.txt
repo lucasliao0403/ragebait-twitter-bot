@@ -4,3 +4,4 @@ python-dotenv
 anthropic
 chromadb
 openai
+google-generativeai
