@@ -41,7 +41,7 @@ class StyleBasedRAG:
 
     def add_style_tweet(self, tweet: str, author: str, engagement: int = 0, category: str = None):
         """
-        Add a tweet that exemplifies the vibe you want.
+        Add a tweet to DB.
 
         Args:
             tweet: The tweet text
@@ -82,23 +82,6 @@ class StyleBasedRAG:
         except Exception as e:
             logger.error(f"Failed to add style tweet: {e}")
             raise
-
-    def add_bulk_style_tweets(self, tweets: list[dict]):
-        """
-        Add multiple style tweets at once.
-
-        Args:
-            tweets: List of dicts with keys: 'text', 'author', 'engagement' (optional), 'category' (optional)
-        """
-        for tweet_data in tweets:
-            self.add_style_tweet(
-                tweet=tweet_data['text'],
-                author=tweet_data['author'],
-                engagement=tweet_data.get('engagement', 0),
-                category=tweet_data.get('category')
-            )
-
-        logger.info(f"Added {len(tweets)} style tweets in bulk")
 
     def get_style_context(self, original_tweet: str, n: int = 5):
         """
@@ -161,54 +144,9 @@ class StyleBasedRAG:
         logger.info("Cleared all style tweets from RAG")
 
 
-# Starter dataset - curated tech Twitter examples
-STARTER_STYLE_TWEETS = [
-    # Sam Altman - brief wisdom
-    {'text': 'the right amount of crazy is a lot', 'author': 'sama', 'engagement': 2500, 'category': 'advice'},
-    {'text': 'startups are a game of people', 'author': 'sama', 'engagement': 1800, 'category': 'advice'},
-    {'text': 'most advice is autobiographical', 'author': 'sama', 'engagement': 3200, 'category': 'observation'},
-    {'text': 'ideas are easy execution is everything', 'author': 'sama', 'engagement': 1500, 'category': 'advice'},
-
-    # Andrej Karpathy - technical but accessible
-    {'text': 'llms are calculators for words', 'author': 'karpathy', 'engagement': 5000, 'category': 'observation'},
-    {'text': 'reading papers is underrated', 'author': 'karpathy', 'engagement': 1200, 'category': 'advice'},
-    {'text': 'just ship it and iterate', 'author': 'karpathy', 'engagement': 2100, 'category': 'advice'},
-    {'text': 'debugging is half the job', 'author': 'karpathy', 'engagement': 900, 'category': 'observation'},
-
-    # Paul Graham - philosophical
-    {'text': 'do things that dont scale', 'author': 'paulg', 'engagement': 4500, 'category': 'advice'},
-    {'text': 'write like you talk', 'author': 'paulg', 'engagement': 2800, 'category': 'advice'},
-    {'text': 'make something people want', 'author': 'paulg', 'engagement': 3500, 'category': 'advice'},
-
-    # Pieter Levels - builder vibe
-    {'text': 'just fucking build it', 'author': 'levelsio', 'engagement': 6000, 'category': 'advice'},
-    {'text': 'ship fast break things', 'author': 'levelsio', 'engagement': 2300, 'category': 'advice'},
-    {'text': 'your mvp is too complex', 'author': 'levelsio', 'engagement': 1900, 'category': 'observation'},
-
-    # John Carmack - deep tech casual
-    {'text': 'measure dont guess', 'author': 'ID_AA_Carmack', 'engagement': 1500, 'category': 'advice'},
-    {'text': 'premature optimization is real', 'author': 'ID_AA_Carmack', 'engagement': 2200, 'category': 'observation'},
-
-    # Naval - concise wisdom
-    {'text': 'specific knowledge is wealth', 'author': 'naval', 'engagement': 8000, 'category': 'observation'},
-    {'text': 'leverage is how you get rich', 'author': 'naval', 'engagement': 5500, 'category': 'advice'},
-
-    # Patrick McKenzie - practical
-    {'text': 'charge more', 'author': 'patio11', 'engagement': 3200, 'category': 'advice'},
-    {'text': 'talk to your customers', 'author': 'patio11', 'engagement': 1800, 'category': 'advice'},
-
-    # Casual tech Twitter vibe
-    {'text': 'this is so unhinged lmao', 'author': 'various', 'engagement': 500, 'category': 'reaction'},
-    {'text': 'cant believe this is real', 'author': 'various', 'engagement': 450, 'category': 'reaction'},
-    {'text': 'based take tbh', 'author': 'various', 'engagement': 600, 'category': 'reaction'},
-    {'text': 'worked for zuck', 'author': 'various', 'engagement': 1200, 'category': 'callback'},
-    {'text': 'vibes check passed', 'author': 'various', 'engagement': 400, 'category': 'reaction'},
-]
-
-
 def initialize_default_rag(db_path: str = None) -> StyleBasedRAG:
     """
-    Initialize RAG with starter dataset if empty.
+    Initialize RAG system.
 
     Args:
         db_path: Path to persistent storage
@@ -216,12 +154,4 @@ def initialize_default_rag(db_path: str = None) -> StyleBasedRAG:
     Returns:
         Initialized StyleBasedRAG instance
     """
-    rag = StyleBasedRAG(db_path=db_path)
-
-    # Add starter tweets if database is empty
-    if rag.count() == 0:
-        logger.info("RAG database empty, adding starter dataset...")
-        rag.add_bulk_style_tweets(STARTER_STYLE_TWEETS)
-        logger.info(f"Added {len(STARTER_STYLE_TWEETS)} starter style tweets")
-
-    return rag
+    return StyleBasedRAG(db_path=db_path)
