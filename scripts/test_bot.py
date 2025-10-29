@@ -24,13 +24,10 @@ def print_menu():
     print("====================================")
 
 async def main():
-    # Initialize BOTH bots
-    tweety_bot = TweetyBot()      # For fast reads
-    browser_bot = BrowserBot()    # For reliable writes
+    tweety_bot = TweetyBot()      # For reading tweets
+    browser_bot = BrowserBot()    # For posting tweets
 
-    print("Welcome to Twitter Hybrid Bot Test CLI!")
-    print("Using tweety-ns for reads, browser-use for writes")
-    print("Make sure you have set up your .env file with Twitter credentials.")
+    print("Welcome to Ragebait Bot Test CLI!")
 
     while True:
         print_menu()

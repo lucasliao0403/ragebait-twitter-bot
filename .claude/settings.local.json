@@ -4,7 +4,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.browser-use.com)",
       "WebSearch",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "WebFetch(domain:mahrtayyab.github.io)"
     ],
     "deny": [],
     "ask": []

@@ -7,12 +7,16 @@ from anthropic import Anthropic
 from .memory_manager import MemoryManager
 from .style_rag import initialize_default_rag
 
-# Load environment variables
+# Load env variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env'))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Suppress verbose HTTP request logs from httpx/httpcore
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 class TweetyBot:
     def __init__(self):
@@ -20,11 +24,11 @@ class TweetyBot:
         self.logged_in = False
         self.memory_manager = MemoryManager()
 
-        # Initialize RAG system for style-based reply generation
+        # init RAG system
         rag_db_path = os.path.join(os.getcwd(), '.rag_data')
         self.style_rag = initialize_default_rag(db_path=rag_db_path)
 
-        # Initialize Anthropic client for reply generation
+        # init anthropic client
         anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         if not anthropic_api_key:
             logger.warning("ANTHROPIC_API_KEY not found - AI reply generation will not work")
@@ -33,7 +37,6 @@ class TweetyBot:
     def _extract_tweet_id_from_url(self, url: str) -> str:
         """Extract tweet ID from Twitter URL"""
         # URL format: https://twitter.com/username/status/1234567890
-        # or https://x.com/username/status/1234567890
         match = re.search(r'/status/(\d+)', url)
         if match:
             return match.group(1)
@@ -47,50 +50,17 @@ class TweetyBot:
         return 'unknown'
 
     async def start_session(self):
-        """Authenticate with Twitter"""
+        """Authenticate with Twitter using session ID"""
         try:
-            # Check for session ID first (priority)
             session_id = os.getenv("TWITTER_SESSION_ID")
 
-            if session_id:
-                logger.info("Attempting to authenticate with session ID...")
-                try:
-                    await self.client.load_auth_token(session_id)
-                    self.logged_in = True
-                    logger.info("✓ Logged in using session ID")
-                    return
-                except Exception as e:
-                    logger.error(f"Session ID authentication failed: {e}")
-                    logger.info("Falling back to username/password authentication...")
+            if not session_id:
+                raise ValueError("TWITTER_SESSION_ID must be set in environment variables")
 
-            # Fallback to username/password
-            username = os.getenv("TWITTER_USERNAME")
-            password = os.getenv("TWITTER_PASSWORD")
-
-            if not username or not password:
-                raise ValueError("Either TWITTER_SESSION_ID or (TWITTER_USERNAME and TWITTER_PASSWORD) must be set in environment variables")
-
-            logger.info("Attempting to authenticate with Twitter credentials...")
-
-            # Try to load existing session first
-            try:
-                await self.client.connect()
-                self.logged_in = True
-                logger.info("✓ Logged in using saved session")
-                return
-            except Exception:
-                logger.info("No saved session found, logging in with credentials...")
-
-            # Sign in with credentials
-            try:
-                await self.client.sign_in(username, password)
-                self.logged_in = True
-                logger.info("✓ Successfully logged in and session saved")
-            except Exception as e:
-                # Handle 2FA or other action required
-                logger.error(f"Login failed: {e}")
-                logger.info("If 2FA is required, please check your authentication app")
-                raise
+            logger.info("Attempting to authenticate with session ID...")
+            await self.client.load_auth_token(session_id)
+            self.logged_in = True
+            logger.info("✓ Logged in using session ID")
 
         except Exception as e:
             logger.error(f"Error starting session: {e}")
@@ -136,29 +106,65 @@ class TweetyBot:
         try:
             logger.info(f"Fetching {count} tweets from timeline...")
 
-            # Get timeline tweets
-            timeline = await self.client.get_home_timeline(pages=1)
-
+            # Fetch tweets using cursor-based pagination
             tweets = []
-            for tweet in timeline[:count]:
-                tweet_data = {
-                    'author': tweet.author.username,
-                    'text': tweet.text,
-                    'url': f"https://twitter.com/{tweet.author.username}/status/{tweet.id}"
-                }
-                tweets.append(tweet_data)
+            cursor = None
+            batch_count = 0
+            MAX_TWEETS_LIMIT = 600
+            max_batches = MAX_TWEETS_LIMIT // 20  # Safety limit (30 batches * ~20 tweets = 600 max)
 
-                # Log to memory
-                interaction_data = {
-                    'type': 'timeline_read',
-                    'text': tweet.text,
-                    'author': tweet.author.username,
-                    'url': tweet_data['url'],
-                    'success': True
-                }
-                self.memory_manager.log_interaction(interaction_data)
+            while len(tweets) < count and batch_count < max_batches:
+                # Fetch batch using cursor parameter (tweety-ns pagination)
+                timeline = await self.client.get_home_timeline(pages=1, cursor=cursor)
 
-            logger.info(f"✓ Fetched {len(tweets)} tweets from timeline")
+                # Convert to list if iterator
+                batch = list(timeline) if hasattr(timeline, '__iter__') else []
+
+                if not batch:
+                    logger.info(f"Timeline exhausted after {len(tweets)} tweets")
+                    break
+
+                # Process each tweet in batch
+                for tweet in batch:
+                    if len(tweets) >= count:
+                        break
+
+                    tweet_data = {
+                        'author': tweet.author.username,
+                        'text': tweet.text,
+                        'url': f"https://twitter.com/{tweet.author.username}/status/{tweet.id}"
+                    }
+                    tweets.append(tweet_data)
+
+                    # Log to memory
+                    interaction_data = {
+                        'type': 'timeline_read',
+                        'text': tweet.text,
+                        'author': tweet.author.username,
+                        'url': tweet_data['url'],
+                        'success': True
+                    }
+                    self.memory_manager.log_interaction(interaction_data)
+
+                # Extract cursor for next batch from SelfTimeline object
+                # Try common attribute names for pagination cursor
+                if hasattr(timeline, 'cursor'):
+                    cursor = timeline.cursor
+                elif hasattr(timeline, 'next_cursor'):
+                    cursor = timeline.next_cursor
+                else:
+                    # If cursor attribute not found, cannot paginate further
+                    logger.warning(f"Could not find cursor on SelfTimeline object after batch {batch_count}, stopping pagination")
+                    break
+
+                # Stop if cursor is None (no more pages)
+                if cursor is None:
+                    logger.info(f"No more pages available after {len(tweets)} tweets")
+                    break
+
+                batch_count += 1
+
+            logger.info(f"✓ Fetched {len(tweets)} tweets from timeline in {batch_count} batch(es)")
 
             # Auto-filter and add high-quality tweets to RAG
             if auto_add_to_rag and tweets:

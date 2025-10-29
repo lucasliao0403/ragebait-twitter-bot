@@ -22,7 +22,7 @@ class TweetClassifier:
             return
 
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
         self.enabled = True
 
         # Load classification prompt template
