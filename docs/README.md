@@ -1,4 +1,4 @@
-# Dynamic Twitter Bot for Tech Trend Engagement
+# Ragebait Twitter Bot
 
 ## Overview
 
