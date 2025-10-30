@@ -42,7 +42,7 @@ class StyleBasedRAG:
 
         logger.info(f"StyleBasedRAG initialized with {self.collection.count()} style tweets")
 
-    def add_style_tweet(self, tweet: str, author: str, engagement: int = 0, category: str = None):
+    def add_style_tweet(self, tweet: str, author: str, engagement: int = 0, category: str = None, url: str = None):
         """
         Add a tweet to DB.
 
@@ -51,6 +51,7 @@ class StyleBasedRAG:
             author: Twitter handle (without @)
             engagement: Number of likes/retweets (optional, for filtering later)
             category: Optional category like 'hot_take', 'joke', 'advice'
+            url: Optional tweet URL (for linking replies to parent tweets)
         """
         try:
             # Create embedding using Gemini with RETRIEVAL_DOCUMENT task type
@@ -76,6 +77,8 @@ class StyleBasedRAG:
             }
             if category:
                 metadata['category'] = category
+            if url:
+                metadata['url'] = url
 
             # Generate unique ID
             tweet_id = f"{author}_{hash(tweet)}"
@@ -94,13 +97,14 @@ class StyleBasedRAG:
             logger.error(f"Failed to add style tweet: {e}")
             raise
 
-    def get_style_context(self, original_tweet: str, n: int = 5):
+    def get_style_context(self, original_tweet: str, n: int = 5, category: str = None):
         """
         Get similar tweets from people with the right vibe.
 
         Args:
             original_tweet: The tweet to reply to
             n: Number of similar style tweets to retrieve
+            category: Optional category filter (e.g., 'auto_filtered', 'reply')
 
         Returns:
             Formatted string with style examples for the LLM prompt
@@ -120,11 +124,16 @@ class StyleBasedRAG:
             embedding_values = np.array(result.embeddings[0].values)
             query_embedding = (embedding_values / np.linalg.norm(embedding_values)).tolist()
 
+            # Build query with optional category filter
+            query_params = {
+                "query_embeddings": [query_embedding],
+                "n_results": n
+            }
+            if category:
+                query_params["where"] = {"category": category}
+
             # Query collection
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=n
-            )
+            results = self.collection.query(**query_params)
 
             # Check if we got results
             if not results['documents'] or not results['documents'][0]:
@@ -151,6 +160,50 @@ class StyleBasedRAG:
         except Exception as e:
             logger.error(f"Failed to get style context: {e}")
             return ""  # Graceful degradation - continue without RAG
+
+    def query_similar_tweets(self, query_text: str, n: int = 5, category: str = None):
+        """
+        Query for similar tweets and return full results.
+
+        Args:
+            query_text: Text to query for
+            n: Number of results to retrieve
+            category: Optional category filter
+
+        Returns:
+            Dict with documents, metadatas, distances, ids
+        """
+        try:
+            # Create embedding
+            result = self.genai_client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=query_text,
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_QUERY",
+                    output_dimensionality=self.embedding_dim
+                )
+            )
+
+            # Normalize embedding
+            embedding_values = np.array(result.embeddings[0].values)
+            query_embedding = (embedding_values / np.linalg.norm(embedding_values)).tolist()
+
+            # Build query
+            query_params = {
+                "query_embeddings": [query_embedding],
+                "n_results": n
+            }
+            if category:
+                query_params["where"] = {"category": category}
+
+            # Query collection
+            results = self.collection.query(**query_params)
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to query similar tweets: {e}")
+            return None
 
     def count(self) -> int:
         """Return number of style tweets in database"""

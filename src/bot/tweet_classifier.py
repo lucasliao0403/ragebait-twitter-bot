@@ -252,7 +252,8 @@ async def classify_and_add_to_rag(
                         tweet=tweet['text'],
                         author=tweet['author'],
                         engagement=0,  # We don't have engagement data from timeline
-                        category='auto_filtered'
+                        category='auto_filtered',
+                        url=tweet.get('url')
                     )
                     added_count += 1
                     accepted_tweets.append(tweet)

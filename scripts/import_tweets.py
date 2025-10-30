@@ -203,7 +203,8 @@ async def main():
                     tweet=tweet_data['text'],
                     author=tweet_data['author'],
                     engagement=tweet_data['engagement'],
-                    category=None
+                    category=None,
+                    url=tweet_data.get('url')
                 )
                 successful += 1
                 print(f"  💾 Added to RAG database")

@@ -81,15 +81,20 @@ def list_tweets(collection, limit=20, category=None, author=None):
     print("="*70)
 
     # Build query
-    where_filters = []
-    if category:
-        where_filters.append({"category": category})
-    if author:
-        where_filters.append({"author": author})
+    where_filters = {}
+    if category and author:
+        # Multiple filters - use $and
+        where_filters = {"$and": [{"category": category}, {"author": author}]}
+    elif category:
+        # Single filter
+        where_filters = {"category": category}
+    elif author:
+        # Single filter
+        where_filters = {"author": author}
 
     # Get items
     if where_filters:
-        results = collection.get(where={"$and": where_filters}, limit=limit)
+        results = collection.get(where=where_filters, limit=limit)
     else:
         results = collection.get(limit=limit)
 

@@ -169,7 +169,7 @@ class TweetyBot:
 
             logger.info(f"✓ Fetched {len(tweets)} tweets from timeline in {batch_count} batch(es)")
 
-            # Auto-filter and add high-quality tweets to RAG
+            # Filter boring tweets using LLM and add high-quality tweets to RAG
             if auto_add_to_rag and tweets:
                 from .tweet_classifier import classify_and_add_to_rag, TweetClassifier
                 added_count, accepted_tweets = await classify_and_add_to_rag(
@@ -235,7 +235,8 @@ class TweetyBot:
                                                 tweet=reply['text'],
                                                 author=reply['author'],
                                                 engagement=reply['engagement'],
-                                                category='reply'
+                                                category='reply',
+                                                url=reply.get('url')
                                             )
                                         except Exception as e:
                                             logger.error(f"Failed to add reply to RAG: {e}")
@@ -290,6 +291,99 @@ class TweetyBot:
             logger.error(f"Error getting user tweets: {e}")
             raise
 
+    def get_reply_style_context(self, original_tweet_text: str, n: int = 5):
+        """
+        Get reply style context using two-step process:
+        1. Find similar original tweets in ChromaDB
+        2. Get replies to those tweets from SQL database
+
+        Args:
+            original_tweet_text: The tweet being replied to
+            n: Number of similar tweets to find
+
+        Returns:
+            Formatted string with reply examples for the LLM prompt
+        """
+        try:
+            # Step 1: Query ChromaDB for similar original tweets (not replies)
+            logger.info("Querying ChromaDB for similar original tweets...")
+            results = self.style_rag.query_similar_tweets(
+                original_tweet_text,
+                n=n,
+                category='auto_filtered'
+            )
+
+            if not results or not results.get('metadatas') or not results['metadatas'][0]:
+                logger.warning("No similar original tweets found in RAG")
+                return ""
+
+            # Step 2: Extract tweet URLs from results
+            tweet_urls = []
+            for metadata in results['metadatas'][0]:
+                url = metadata.get('url')
+                if url:
+                    tweet_urls.append(url)
+
+            if not tweet_urls:
+                logger.warning("No tweet URLs found in RAG metadata")
+                return ""
+
+            logger.info(f"Found {len(tweet_urls)} similar tweets, fetching their replies...")
+
+            # Step 3: Build tweet + replies pairs
+            tweet_reply_pairs = []
+            for i, metadata in enumerate(results['metadatas'][0]):
+                url = metadata.get('url')
+                if not url:
+                    continue
+
+                # Get the original tweet text
+                original_tweet_text = results['documents'][0][i]
+                original_author = metadata.get('author', 'unknown')
+
+                # Get replies from SQL
+                replies = self.memory_manager.get_replies(url)
+                if replies:
+                    # Sort by engagement
+                    sorted_replies = sorted(replies, key=lambda r: r.get('engagement', 0), reverse=True)
+                    tweet_reply_pairs.append({
+                        'original_tweet': original_tweet_text,
+                        'original_author': original_author,
+                        'replies': sorted_replies[:5]  # Top 5 replies per tweet
+                    })
+
+            if not tweet_reply_pairs:
+                logger.warning("No replies found for similar tweets")
+                return ""
+
+            # Step 4: Format as tweet + replies examples
+            reply_context = "REPLY STYLE REFERENCE (study how these replies engage with similar tweets):\n\n"
+
+            for i, pair in enumerate(tweet_reply_pairs[:3], 1):  # Show top 3 tweet+reply groups
+                reply_context += f"EXAMPLE {i}:\n"
+                reply_context += f"Original Tweet by @{pair['original_author']}:\n"
+                reply_context += f'"{pair["original_tweet"]}"\n\n'
+                reply_context += "Replies:\n"
+
+                for j, reply in enumerate(pair['replies'], 1):
+                    author = reply.get('author', 'unknown')
+                    text = reply.get('text', '')
+                    engagement = reply.get('engagement', 0)
+                    reply_context += f"  {j}. @{author} ({engagement} engagement): \"{text}\"\n"
+
+                reply_context += "\n"
+
+            reply_context += "💡 Notice how replies engage with the original tweet's topic and tone"
+
+            total_replies = sum(len(pair['replies']) for pair in tweet_reply_pairs[:3])
+            logger.info(f"Retrieved {len(tweet_reply_pairs[:3])} tweet+reply examples with {total_replies} total replies")
+            logger.info(f"Reply context:\n{reply_context}")
+            return reply_context
+
+        except Exception as e:
+            logger.error(f"Failed to get reply style context: {e}")
+            return ""  # Graceful degradation
+
     async def generate_reply(self, tweet_url):
         """Generate an AI reply to a tweet using Claude"""
         if not self.logged_in:
@@ -339,11 +433,10 @@ class TweetyBot:
                 for i, tweet in enumerate(previous_tweets[:5], 1):
                     context_parts.append(f"{i}. {tweet}")
 
-            # Get style examples from RAG
-            # TODO: dynamic number of examples?
-            style_context = self.style_rag.get_style_context(original_text, n=12)
-            if style_context:
-                context_parts.append(f"\n{style_context}")
+            # Get reply examples from similar tweets (two-step: ChromaDB → SQL)
+            reply_context = self.get_reply_style_context(original_text, n=5)
+            if reply_context:
+                context_parts.append(f"\n{reply_context}")
 
             context_parts.append("\nGenerate a reply tweet (max 280 characters) that:")
             context_parts.append("- Engages with the original tweet's context")
