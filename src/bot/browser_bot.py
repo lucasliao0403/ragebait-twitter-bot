@@ -489,15 +489,12 @@ class BrowserBot:
 
         try:
             task = f"""
-            Reply to the SPECIFIC tweet at {tweet_url} in exactly 4 steps:
+            FOR EACH STEP, DO NOT VALIDATE.
+            1. Go to {tweet_url}
+            2. Click "Post your reply" button and type "{text}"
+            3. Click 'Reply' button then STOP
 
-            STEP 1: Navigate to {tweet_url} → VALIDATE: You are on the tweet page (URL contains /status/)
-            STEP 2: Click Reply on THIS tweet. → VALIDATE: You are on the reply popup
-            STEP 3: Type "{text}" in the reply box → VALIDATE: Text is entered
-            STEP 4: Click "Post" or "Reply" button to submit
-
-            CRITICAL: Stay on the tweet page at {tweet_url}. Do NOT navigate to the author's profile page.
-            IMMEDIATELY STOP after step 4.
+            After action 3, IMMEDIATELY STOP. Do not do anything else.
             """
 
             agent = Agent(
@@ -505,11 +502,12 @@ class BrowserBot:
                 llm=self.llm,
                 browser_session=self.browser_session,
                 browser_profile=self.fast_browser_profile,
-                system_message=f"Navigate to {tweet_url}, click Reply button on THAT tweet, type text, click Post, then STOP. Do not navigate to author's profile.",
-                max_steps=4,
-                step_timeout=30,
+                system_message="Execute 3 actions then stop immediately. No validation.",
+                max_steps=3,
+                max_actions_per_step=1,
+                step_timeout=20,
                 verbose=True
-            )   
+            )
 
             result = await agent.run()
 
