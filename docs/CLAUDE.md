@@ -229,7 +229,11 @@ python scripts/test_bot.py
 
 **TODO:**
 Most important:
+
+- improve timeline reading - for each tweet,
+  - fetch top 5 highest engagement replies from tweets and store those with the original tweet
 - implement fully autonomous workflow for reply generation
+  - create run_bot.py with learning loop and replying loop
 - clean up logging
 - host chromadb somewhere so it doesn't have to initialize every time.
 - memory/self improvement: 
