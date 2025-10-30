@@ -62,6 +62,24 @@ class MemoryManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(last_updated)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_conversations_thread ON conversations(thread_id)')
 
+        # Create replies table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS replies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_tweet_url TEXT NOT NULL,
+                reply_tweet_id TEXT NOT NULL,
+                author TEXT,
+                text TEXT,
+                url TEXT,
+                engagement INTEGER DEFAULT 0,
+                timestamp TEXT NOT NULL
+            )
+        ''')
+
+        # Create indexes for replies
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_replies_parent ON replies(parent_tweet_url)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_replies_timestamp ON replies(timestamp)')
+
         conn.commit()
         conn.close()
 
@@ -282,3 +300,60 @@ class MemoryManager:
 
         except Exception as e:
             print(f"[MemoryManager] ❌ Error logging conversation: {e}")
+
+    def log_replies(self, parent_tweet_url: str, replies: List[Dict[str, Any]]):
+        """Log replies to a tweet"""
+        try:
+            if not replies:
+                return
+
+            print(f"\n[MemoryManager] Logging {len(replies)} replies for tweet: {parent_tweet_url}")
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            timestamp = datetime.now().isoformat()
+
+            for reply in replies:
+                cursor.execute('''
+                    INSERT INTO replies (parent_tweet_url, reply_tweet_id, author, text, url, engagement, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    parent_tweet_url,
+                    reply.get('id', ''),
+                    reply.get('author', ''),
+                    reply.get('text', ''),
+                    reply.get('url', ''),
+                    reply.get('engagement', 0),
+                    timestamp
+                ))
+
+            conn.commit()
+            conn.close()
+
+            print(f"[MemoryManager] ✓ Successfully saved {len(replies)} replies to database\n")
+
+        except Exception as e:
+            print(f"[MemoryManager] ❌ Error logging replies: {e}")
+
+    def get_replies(self, parent_tweet_url: str) -> List[Dict[str, Any]]:
+        """Get replies for a specific tweet"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT * FROM replies
+                WHERE parent_tweet_url = ?
+                ORDER BY engagement DESC, timestamp DESC
+            ''', (parent_tweet_url,))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [dict(row) for row in rows]
+
+        except Exception as e:
+            print(f"[MemoryManager] ❌ Error getting replies: {e}")
+            return []

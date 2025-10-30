@@ -30,6 +30,11 @@ class TweetClassifier:
         with open(prompt_path, 'r') as f:
             self.prompt_template = f.read()
 
+        # Load reply classification prompt template
+        reply_prompt_path = os.path.join(os.path.dirname(__file__), 'reply_classification_prompt.txt')
+        with open(reply_prompt_path, 'r') as f:
+            self.reply_prompt_template = f.read()
+
         logger.info("TweetClassifier initialized with Gemini 2.5 Flash Lite")
 
     def classify_batch(self, tweets: List[Dict[str, str]]) -> List[bool]:
@@ -118,12 +123,104 @@ class TweetClassifier:
             # Fallback: accept all on error
             return [True] * len(tweets)
 
+    def classify_replies(self, original_tweet: Dict[str, str], replies: List[Dict[str, str]]) -> List[bool]:
+        """
+        Classify replies to a tweet for relevance and interestingness.
+
+        Args:
+            original_tweet: The original tweet dict with keys: 'text', 'author'
+            replies: List of reply dicts with keys: 'text', 'author', 'url', 'engagement'
+
+        Returns:
+            List of booleans (True = accept, False = reject)
+        """
+        if not self.enabled:
+            logger.warning("Classifier not enabled, accepting all replies")
+            return [True] * len(replies)
+
+        if not replies:
+            return []
+
+        try:
+            # Prepare replies for classification
+            replies_for_llm = [
+                {
+                    "index": i,
+                    "author": reply.get('author', 'unknown'),
+                    "text": reply.get('text', ''),
+                    "engagement": reply.get('engagement', 0)
+                }
+                for i, reply in enumerate(replies)
+            ]
+
+            original_tweet_text = f"@{original_tweet.get('author', 'unknown')}: {original_tweet.get('text', '')}"
+            replies_json = json.dumps(replies_for_llm, indent=2)
+            prompt = self.reply_prompt_template.format(
+                original_tweet=original_tweet_text,
+                replies_json=replies_json
+            )
+
+            # Call Gemini
+            logger.info(f"Classifying {len(replies)} replies with Gemini...")
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.0,  # Deterministic for classification
+                    max_output_tokens=2000,
+                )
+            )
+
+            # Parse response
+            response_text = response.text.strip()
+
+            # Extract JSON from markdown code blocks if present
+            if '```json' in response_text:
+                start = response_text.index('```json') + 7
+                end = response_text.rindex('```')
+                response_text = response_text[start:end].strip()
+            elif '```' in response_text:
+                start = response_text.index('```') + 3
+                end = response_text.rindex('```')
+                response_text = response_text[start:end].strip()
+
+            result = json.loads(response_text)
+            classifications = result.get('classifications', [])
+
+            # Convert to boolean list
+            accepts = [False] * len(replies)
+            for classification in classifications:
+                idx = classification.get('index', -1)
+                if 0 <= idx < len(replies):
+                    accepts[idx] = classification.get('accept', False)
+
+                    # Log classification reasoning
+                    if logger.isEnabledFor(logging.DEBUG):
+                        reason = classification.get('reason', 'no reason')
+                        status = "✓ ACCEPT" if accepts[idx] else "✗ REJECT"
+                        logger.debug(f"{status} Reply[{idx}] @{replies[idx]['author']}: {reason}")
+
+            accepted_count = sum(accepts)
+            logger.info(f"Reply classification complete: {accepted_count}/{len(replies)} accepted")
+
+            return accepts
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Response text: {response_text[:500]}")
+            # Fallback: accept all on parse error
+            return [True] * len(replies)
+
+        except Exception as e:
+            logger.error(f"Error classifying replies: {e}")
+            # Fallback: accept all on error
+            return [True] * len(replies)
+
 
 async def classify_and_add_to_rag(
     tweets: List[Dict[str, str]],
     style_rag,
     batch_size: int = BATCH_SIZE
-) -> int:
+) -> tuple[int, List[Dict[str, str]]]:
     """
     Classify tweets in batches and add accepted ones to RAG database.
 
@@ -133,13 +230,14 @@ async def classify_and_add_to_rag(
         batch_size: Number of tweets per batch
 
     Returns:
-        Number of tweets added to RAG
+        Tuple of (number of tweets added to RAG, list of accepted tweets)
     """
     if not tweets:
-        return 0
+        return 0, []
 
     classifier = TweetClassifier()
     added_count = 0
+    accepted_tweets = []
 
     # Process in batches
     for i in range(0, len(tweets), batch_size):
@@ -157,9 +255,10 @@ async def classify_and_add_to_rag(
                         category='auto_filtered'
                     )
                     added_count += 1
+                    accepted_tweets.append(tweet)
                     logger.debug(f"Added to RAG: @{tweet['author']}: {tweet['text'][:50]}...")
                 except Exception as e:
                     logger.error(f"Failed to add tweet to RAG: {e}")
 
     logger.info(f"Auto-filtered: {added_count}/{len(tweets)} tweets added to RAG")
-    return added_count
+    return added_count, accepted_tweets

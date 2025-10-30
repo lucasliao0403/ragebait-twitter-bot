@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
+# Constants
+REPLIES_TO_FETCH = 10  # Number of replies to fetch per tweet
+
 class TweetyBot:
     def __init__(self):
         self.client = TwitterAsync("twitter_session")
@@ -168,14 +171,81 @@ class TweetyBot:
 
             # Auto-filter and add high-quality tweets to RAG
             if auto_add_to_rag and tweets:
-                from .tweet_classifier import classify_and_add_to_rag
-                added_count = await classify_and_add_to_rag(
+                from .tweet_classifier import classify_and_add_to_rag, TweetClassifier
+                added_count, accepted_tweets = await classify_and_add_to_rag(
                     tweets,
                     self.style_rag,
                     batch_size=40
                 )
                 if added_count > 0:
                     logger.info(f"🎯 Auto-added {added_count}/{len(tweets)} tweets to RAG database")
+
+                # Fetch and filter replies for accepted tweets
+                if accepted_tweets:
+                    logger.info(f"Fetching replies for {len(accepted_tweets)} accepted tweets...")
+                    classifier = TweetClassifier()
+                    total_replies_fetched = 0
+                    total_replies_stored = 0
+
+                    for tweet in accepted_tweets:
+                        try:
+                            # Extract tweet ID from URL
+                            tweet_id = tweet['url'].split('/')[-1]
+
+                            # Fetch replies using tweety-ns API
+                            logger.debug(f"Fetching replies for tweet {tweet_id}...")
+                            comments = await self.client.get_tweet_comments(tweet_id, pages=1)
+
+                            # Extract reply data from ConversationThread objects
+                            replies_data = []
+                            for thread in list(comments)[:REPLIES_TO_FETCH]:
+                                # Each thread has a main tweet
+                                if hasattr(thread, 'tweets') and thread.tweets:
+                                    for reply_tweet in thread.tweets[:1]:  # Take first tweet from each thread
+                                        if reply_tweet.id != tweet_id:  # Skip the original tweet
+                                            reply_data = {
+                                                'id': reply_tweet.id,
+                                                'author': reply_tweet.author.username,
+                                                'text': reply_tweet.text,
+                                                'url': f"https://twitter.com/{reply_tweet.author.username}/status/{reply_tweet.id}",
+                                                'engagement': (reply_tweet.likes or 0) + (reply_tweet.retweet_counts or 0)
+                                            }
+                                            replies_data.append(reply_data)
+
+                            total_replies_fetched += len(replies_data)
+
+                            if replies_data:
+                                # Classify replies for relevance/interestingness
+                                accepts = classifier.classify_replies(tweet, replies_data)
+
+                                # Filter to only accepted replies
+                                filtered_replies = [
+                                    reply for reply, accept in zip(replies_data, accepts) if accept
+                                ]
+
+                                if filtered_replies:
+                                    # Store in database
+                                    self.memory_manager.log_replies(tweet['url'], filtered_replies)
+                                    total_replies_stored += len(filtered_replies)
+
+                                    # Add to RAG for style learning
+                                    for reply in filtered_replies:
+                                        try:
+                                            self.style_rag.add_style_tweet(
+                                                tweet=reply['text'],
+                                                author=reply['author'],
+                                                engagement=reply['engagement'],
+                                                category='reply'
+                                            )
+                                        except Exception as e:
+                                            logger.error(f"Failed to add reply to RAG: {e}")
+
+                        except Exception as e:
+                            logger.error(f"Error fetching/processing replies for tweet {tweet.get('url', 'unknown')}: {e}")
+                            continue
+
+                    if total_replies_stored > 0:
+                        logger.info(f"💬 Fetched {total_replies_fetched} replies, stored {total_replies_stored} filtered replies")
 
             return tweets
 
