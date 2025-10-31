@@ -8,11 +8,11 @@ import sys
 import os
 import sqlite3
 
-# Add src directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add parent directory to path so we can import from src
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from bot.memory_manager import MemoryManager
-from bot.tweet_classifier import TweetClassifier
+from src.memory_manager import MemoryManager
+from src.tweet_classifier import TweetClassifier
 
 def test_database_schema():
     """Test that the replies table was created correctly"""
@@ -135,7 +135,7 @@ def test_tweet_classifier():
             return False
 
         # Check if reply_prompt_template file exists (it might not be loaded if API key is missing)
-        prompt_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'bot', 'reply_classification_prompt.txt')
+        prompt_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'reply_classification_prompt.txt')
         if os.path.exists(prompt_file):
             print("✓ reply_classification_prompt.txt file exists")
         else:

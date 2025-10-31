@@ -66,7 +66,7 @@ TWITTER_PASSWORD=...
 
 ## File Structure
 
-src/bot/
+src/
   tweety_bot.py       # reads: get timeline, search tweets, get user tweets
   browser_bot.py      # writes: post tweet, reply to tweet
   memory_manager.py   # sqlite memory (interactions, friends, conversations)

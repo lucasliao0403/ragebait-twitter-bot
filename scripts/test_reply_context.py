@@ -10,11 +10,11 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', '.env'))
 
-# Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add parent directory to path so we can import from src
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from bot.style_rag import initialize_default_rag
-from bot.memory_manager import MemoryManager
+from src.style_rag import initialize_default_rag
+from src.memory_manager import MemoryManager
 
 def test_two_step_query():
     """Test the two-step query process"""

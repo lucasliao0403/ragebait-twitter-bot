@@ -10,10 +10,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', '.env'))
 
-# Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add parent directory to path so we can import from src
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from bot.tweety_bot import TweetyBot
+from src.tweety_bot import TweetyBot
 import asyncio
 
 # Test cases covering different scenarios

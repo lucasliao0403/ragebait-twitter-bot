@@ -3,12 +3,16 @@
 import sys
 import os
 import asyncio
+from dotenv import load_dotenv
 
-# Add src directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', '.env'))
 
-from bot.tweety_bot import TweetyBot
-from bot.browser_bot import BrowserBot
+# Add parent directory to path so we can import from src
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from src.tweety_bot import TweetyBot
+from src.browser_bot import BrowserBot
 
 def print_menu():
     """Print the available commands menu"""
