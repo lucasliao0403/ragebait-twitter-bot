@@ -135,7 +135,7 @@ def test_tweet_classifier():
             return False
 
         # Check if reply_prompt_template file exists (it might not be loaded if API key is missing)
-        prompt_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'reply_classification_prompt.txt')
+        prompt_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'prompts', 'reply_classification_prompt.txt')
         if os.path.exists(prompt_file):
             print("✓ reply_classification_prompt.txt file exists")
         else:

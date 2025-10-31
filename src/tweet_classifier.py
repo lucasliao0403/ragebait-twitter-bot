@@ -26,12 +26,12 @@ class TweetClassifier:
         self.enabled = True
 
         # Load classification prompt template
-        prompt_path = os.path.join(os.path.dirname(__file__), 'classification_prompt.txt')
+        prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'classification_prompt.txt')
         with open(prompt_path, 'r') as f:
             self.prompt_template = f.read()
 
         # Load reply classification prompt template
-        reply_prompt_path = os.path.join(os.path.dirname(__file__), 'reply_classification_prompt.txt')
+        reply_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'reply_classification_prompt.txt')
         with open(reply_prompt_path, 'r') as f:
             self.reply_prompt_template = f.read()
 

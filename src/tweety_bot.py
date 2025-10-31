@@ -321,7 +321,7 @@ class TweetyBot:
         """
         try:
             # Read tone classifier prompt
-            classifier_prompt_path = os.path.join(os.path.dirname(__file__), 'tone_classifier_prompt.txt')
+            classifier_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'tone_classifier_prompt.txt')
             with open(classifier_prompt_path, 'r') as f:
                 classifier_system_prompt = f.read().strip()
 
@@ -564,7 +564,7 @@ class TweetyBot:
             db_conn.close()
 
             # Read system prompt
-            system_prompt_path = os.path.join(os.path.dirname(__file__), 'reply_prompt.txt')
+            system_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'reply_prompt.txt')
             with open(system_prompt_path, 'r') as f:
                 system_prompt = f.read().strip()
 

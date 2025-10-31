@@ -27,11 +27,6 @@ twitter bot. uses tweety-ns (reverse-engineered twitter api) for reads, browser-
 - **browser-use solution**: handles all WRITES (post tweets, reply to tweets).
 - result: tweety for fast reads, browser for necessary writes.
 
-**files:**
-- tweety_bot.py: reads only (timeline, search, user tweets)
-- browser_bot.py: writes only (post, reply)
-- test_bot.py: routes operations to correct bot
-
 ## Key References
 
 - [tweety-ns docs](https://mahrtayyab.github.io/tweety_docs/): twitter api lib
@@ -43,13 +38,7 @@ twitter bot. uses tweety-ns (reverse-engineered twitter api) for reads, browser-
 pip install -r requirements.txt
 ```
 
-**requirements.txt:**
-- tweety-ns (twitter api)
-- browser-use (posting/replies)
-- anthropic (claude for replies)
-- chromadb (vector db for style examples)
-- google-generativeai (gemini for embeddings + tweet classification)
-- python-dotenv
+Requirements are in config/requirements.txt
 
 **config/.env:**
 

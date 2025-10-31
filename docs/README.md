@@ -4,21 +4,24 @@
 
 An agentic Twitter bot to ragebait tech twitter.
 
-Built using browser-use and tweety-ns.
+## Tech Stack:
+- tweety-ns
+- browser-use
+- anthropic
+- chromadb 
+- gemini
 
-Current pipeline:
-1) Read Timeline
-2) Add interesting tweets and their replies to RAG db 
-3) Read timeline and select tweets to reply to
-4) Replying: 
-    1) Fetch relevant tweets from RAG
-    2) Determine appropriate tone to reply with
-    3) Generate and post reply
-
-## Core Functionality
-
-- Tweets are read from timeline using tweety-ns
-- Tweets are filtered for quality, then added to /.rag_data for RAG.
-- NOT IMPLEMENTED: Timeline is read again, then some tweets are selected to be replied to.
-- Logs interactions in /data/memory.db(tweets, replies, timeline reads, etc.)
+## Functionality
+1) Read timeline using tweety-ns
+2) Add interesting tweets and their replies to /.rag_data for RAG. Tweets are stored by author.
+3) TODO: Actively read timeline and select tweets to reply to. Cron job maybe?
+4) Logs interactions (timeline reads, replies, etc.) in /data/memory.db
+5) Replying: 
+    1) Build reply context: author tweets + relevant RAG tweets and their replies
+    2) Determine appropriate tone to reply with using Gemini
+    3) Generate and post reply using Claude Opus 
 - TODO: Tracks engagement and personalizes interactions to increase engagement.
+
+
+
+
