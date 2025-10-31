@@ -5,7 +5,8 @@ import json
 from dotenv import load_dotenv
 from tweety import TwitterAsync
 from anthropic import Anthropic
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from .memory_manager import MemoryManager
 from .style_rag import initialize_default_rag
 from .tone_modifiers import TONE_MODIFIERS
@@ -45,11 +46,11 @@ class TweetyBot:
         if not gemini_api_key:
             logger.warning("GEMINI_API_KEY not found - tone classification will fall back to default")
             self.gemini_enabled = False
+            self.gemini_client = None
         else:
-            genai.configure(api_key=gemini_api_key)
-            self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+            self.gemini_client = genai.Client(api_key=gemini_api_key)
             self.gemini_enabled = True
-            logger.info("Gemini 2.5 Flash Lite initialized for tone classification")
+            logger.info("Gemini 2.5 Flash initialized for tone classification")
 
     def _extract_tweet_id_from_url(self, url: str) -> str:
         """Extract tweet ID from Twitter URL"""
@@ -365,39 +366,49 @@ class TweetyBot:
 
             logger.info(f"Full tone classifier prompt:\n{full_prompt}")
 
-            response = self.gemini_model.generate_content(
-                full_prompt,
-                generation_config=genai.types.GenerationConfig(
+            response = self.gemini_client.models.generate_content(
+                model='gemini-2.5-flash-lite',
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                     temperature=0.2,  # Low temperature for consistent classification
-                    max_output_tokens=300,
-                ),
-                safety_settings=[
-                    genai.types.SafetySetting(
-                        category=genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
-                    ),
-                    genai.types.SafetySetting(
-                        category=genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
-                    ),
-                    genai.types.SafetySetting(
-                        category=genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
-                    ),
-                    genai.types.SafetySetting(
-                        category=genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
-                    ),
-                ]
+                    safety_settings=[
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE
+                        ),
+                    ]
+                )
             )
 
-            # Check for safety blocks or empty response
-            if not response.candidates or not response.candidates[0].content.parts:
-                finish_reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
-                logger.warning(f"Gemini blocked response (finish_reason={finish_reason}), falling back to contrarian")
+            # Check for empty response or blocked content
+            if not response or not response.candidates:
+                logger.warning(f"Gemini returned no candidates, falling back to contrarian")
                 return {
                     "tone": "contrarian",
-                    "reasoning": f"Gemini safety filter triggered (reason: {finish_reason}), using default tone"
+                    "reasoning": "Gemini returned no candidates, using default tone"
+                }
+
+            # Check finish reason
+            finish_reason = response.candidates[0].finish_reason.name if response.candidates[0].finish_reason else "UNKNOWN"
+
+            if not response.text or finish_reason != "STOP":
+                logger.warning(f"Gemini blocked or incomplete response (finish_reason={finish_reason}), falling back to contrarian")
+                return {
+                    "tone": "contrarian",
+                    "reasoning": f"Gemini blocked response (reason: {finish_reason}), using default tone"
                 }
 
             # Parse JSON response

@@ -6,7 +6,8 @@
       "WebSearch",
       "Bash(sqlite3:*)",
       "WebFetch(domain:mahrtayyab.github.io)",
-      "Bash(python scripts/test_reply_context.py:*)"
+      "Bash(python scripts/test_reply_context.py:*)",
+      "WebFetch(domain:ai.google.dev)"
     ],
     "deny": [],
     "ask": []

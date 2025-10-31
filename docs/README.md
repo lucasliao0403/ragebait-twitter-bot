@@ -6,6 +6,15 @@ An agentic Twitter bot to ragebait tech twitter.
 
 Built using browser-use and tweety-ns.
 
+Current pipeline:
+1) Read Timeline
+2) Add interesting tweets and their replies to RAG db 
+3) Read timeline and select tweets to reply to
+4) Replying: 
+    1) Fetch relevant tweets from RAG
+    2) Determine appropriate tone to reply with
+    3) Generate and post reply
+
 ## Core Functionality
 
 - Tweets are read from timeline using tweety-ns
