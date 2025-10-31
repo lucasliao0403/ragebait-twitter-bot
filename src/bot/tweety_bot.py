@@ -1,11 +1,14 @@
 import os
 import logging
 import re
+import json
 from dotenv import load_dotenv
 from tweety import TwitterAsync
 from anthropic import Anthropic
+import google.generativeai as genai
 from .memory_manager import MemoryManager
 from .style_rag import initialize_default_rag
+from .tone_modifiers import TONE_MODIFIERS
 
 # Load env variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env'))
@@ -36,6 +39,17 @@ class TweetyBot:
         if not anthropic_api_key:
             logger.warning("ANTHROPIC_API_KEY not found - AI reply generation will not work")
         self.anthropic = Anthropic(api_key=anthropic_api_key)
+
+        # Initialize Gemini for tone classification
+        gemini_api_key = os.getenv('GEMINI_API_KEY')
+        if not gemini_api_key:
+            logger.warning("GEMINI_API_KEY not found - tone classification will fall back to default")
+            self.gemini_enabled = False
+        else:
+            genai.configure(api_key=gemini_api_key)
+            self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+            self.gemini_enabled = True
+            logger.info("Gemini 2.5 Flash Lite initialized for tone classification")
 
     def _extract_tweet_id_from_url(self, url: str) -> str:
         """Extract tweet ID from Twitter URL"""
@@ -291,6 +305,128 @@ class TweetyBot:
             logger.error(f"Error getting user tweets: {e}")
             raise
 
+    def classify_tone(self, original_tweet_text: str, original_author: str, previous_tweets: list, reply_context: str) -> dict:
+        """
+        Classify the optimal tone for replying to a tweet using Gemini Flash.
+
+        Args:
+            original_tweet_text: The tweet being replied to
+            original_author: Username of the tweet author
+            previous_tweets: List of previous tweets from this author
+            reply_context: Formatted reply examples from similar tweets
+
+        Returns:
+            Dict with 'tone' (supportive/ragebait/funny) and 'reasoning'
+        """
+        try:
+            # Read tone classifier prompt
+            classifier_prompt_path = os.path.join(os.path.dirname(__file__), 'tone_classifier_prompt.txt')
+            with open(classifier_prompt_path, 'r') as f:
+                classifier_system_prompt = f.read().strip()
+
+            # Build context for tone classifier
+            context_parts = [
+                classifier_system_prompt,
+                "",
+                "="*70,
+                "CONTEXT TO ANALYZE:",
+                "="*70,
+                "",
+                f"ORIGINAL TWEET:",
+                f"Author: @{original_author}",
+                f'Text: "{original_tweet_text}"',
+                ""
+            ]
+
+            if previous_tweets:
+                context_parts.append("AUTHOR'S PREVIOUS TWEETS (their typical style):")
+                for i, tweet in enumerate(previous_tweets[:5], 1):
+                    context_parts.append(f"{i}. {tweet}")
+                context_parts.append("")
+
+            if reply_context:
+                context_parts.append(reply_context)
+                context_parts.append("")
+
+            context_parts.append("Based on all this context, what tone should the reply use?")
+            context_parts.append("Output ONLY the JSON object, no other text.")
+
+            full_prompt = "\n".join(context_parts)
+
+            # Call Gemini for tone classification
+            logger.info("Classifying optimal reply tone with Gemini Flash...")
+
+            if not self.gemini_enabled:
+                logger.warning("Gemini not enabled, falling back to contrarian")
+                return {
+                    "tone": "contrarian",
+                    "reasoning": "Gemini not configured, using default contrarian tone"
+                }
+
+            logger.info(f"Full tone classifier prompt:\n{full_prompt}")
+
+            response = self.gemini_model.generate_content(
+                full_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.2,  # Low temperature for consistent classification
+                    max_output_tokens=300,
+                ),
+                safety_settings=[
+                    genai.types.SafetySetting(
+                        category=genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    genai.types.SafetySetting(
+                        category=genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    genai.types.SafetySetting(
+                        category=genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    genai.types.SafetySetting(
+                        category=genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                        threshold=genai.types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                ]
+            )
+
+            # Check for safety blocks or empty response
+            if not response.candidates or not response.candidates[0].content.parts:
+                finish_reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
+                logger.warning(f"Gemini blocked response (finish_reason={finish_reason}), falling back to contrarian")
+                return {
+                    "tone": "contrarian",
+                    "reasoning": f"Gemini safety filter triggered (reason: {finish_reason}), using default tone"
+                }
+
+            # Parse JSON response
+            response_text = response.text.strip()
+
+            # Extract JSON if wrapped in markdown
+            if "```json" in response_text:
+                json_start = response_text.index("```json") + 7
+                json_end = response_text.index("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+            elif "```" in response_text:
+                json_start = response_text.index("```") + 3
+                json_end = response_text.index("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+
+            tone_data = json.loads(response_text)
+
+            logger.info(f"✓ Classified tone as '{tone_data['tone']}': {tone_data['reasoning']}")
+            return tone_data
+
+        except Exception as e:
+            logger.error(f"Error classifying tone: {e}")
+            # Fallback to contrarian (your current default)
+            logger.warning("Falling back to 'contrarian' tone")
+            return {
+                "tone": "contrarian",
+                "reasoning": "Error during classification, using default contrarian tone"
+            }
+
     def get_reply_style_context(self, original_tweet_text: str, n: int = 5):
         """
         Get reply style context using two-step process:
@@ -377,7 +513,7 @@ class TweetyBot:
 
             total_replies = sum(len(pair['replies']) for pair in tweet_reply_pairs[:3])
             logger.info(f"Retrieved {len(tweet_reply_pairs[:3])} tweet+reply examples with {total_replies} total replies")
-            logger.info(f"Reply context:\n{reply_context}")
+            # logger.info(f"Reply context:\n{reply_context}")
             return reply_context
 
         except Exception as e:
@@ -438,11 +574,22 @@ class TweetyBot:
             if reply_context:
                 context_parts.append(f"\n{reply_context}")
 
-            context_parts.append("\nGenerate a reply tweet (max 280 characters) that:")
-            context_parts.append("- Engages with the original tweet's context")
-            context_parts.append("- Creates maximum engagement (controversy, hot takes, ragebait)")
-            context_parts.append("- Matches tech bro energy")
-            context_parts.append("- Is designed to get replies/quote tweets")
+            # Classify tone based on all context
+            tone_data = self.classify_tone(
+                original_tweet_text=original_text,
+                original_author=original_author,
+                previous_tweets=previous_tweets,
+                reply_context=reply_context
+            )
+
+            # Get the appropriate tone modifier
+            tone = tone_data.get('tone', 'contrarian')
+            tone_modifier = TONE_MODIFIERS.get(tone, TONE_MODIFIERS['contrarian'])
+
+            # Add tone-specific instructions
+            context_parts.append(f"\n{tone_modifier}")
+
+            context_parts.append("\nGenerate a reply tweet (max 280 characters).")
             context_parts.append("\nRespond with ONLY the tweet text, nothing else.")
 
             user_prompt = "\n".join(context_parts)

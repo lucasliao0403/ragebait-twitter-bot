@@ -230,8 +230,7 @@ python scripts/test_bot.py
 **TODO:**
 Most important:
 
-- improve timeline reading - for each tweet,
-  - fetch top 5 highest engagement replies from tweets and store those with the original tweet
+
 - implement fully autonomous workflow for reply generation
   - create run_bot.py with learning loop and replying loop
 - clean up logging
@@ -239,7 +238,5 @@ Most important:
 - memory/self improvement: 
     - learns from engagement. currently engagement isn't tracked
 - improve consistency of browser use functions:
-    - post tweet doesn't always stop
     - login doesn't always work
-- check out cerebras to replace groq
-- dynamic number of RAG results (currently hardcoded to 12 in tweety_bot.py)
+- dynamic number of RAG results when generating replies(currently hardcoded to 12 in tweety_bot.py)
